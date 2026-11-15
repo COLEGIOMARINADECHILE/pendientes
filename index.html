@@ -1,0 +1,94 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Evaluaciones Pendientes · Colegio Marina de Chile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ============ ACCESO ============ -->
+<section id="login" class="login">
+  <div class="login-card">
+    <div class="login-brand">
+      <img id="lg-logo" alt="Insignia" hidden>
+      <div id="lg-icon" style="font-size:2.6rem"><i class="fa-solid fa-school"></i></div>
+      <h1>Evaluaciones<br>Pendientes</h1>
+      <p>Colegio Marina de Chile<br><small>Sistema de uso interno · la información es de carácter reservado</small></p>
+    </div>
+    <div class="login-form">
+      <div class="seg"><button class="on" data-t="staff">Funcionarios</button><button data-t="family">Estudiantes y familias</button></div>
+
+      <form id="f-staff" autocomplete="off">
+        <div class="field"><label>Perfil</label>
+          <select id="lg-role" required>
+            <option value="">Seleccione…</option>
+            <option value="docente">Docente</option><option value="asistente">Asistente de Educación</option>
+            <option value="inspector">Inspectoría</option><option value="pie">Equipo PIE</option>
+            <option value="admin">Administrador (Coordinación / UTP)</option>
+          </select></div>
+        <div class="field" id="lg-level-box" hidden><label>Nivel</label>
+          <select id="lg-level"><option value="">Todos</option><option value="Básica">Enseñanza Básica</option><option value="Media">Enseñanza Media</option></select></div>
+        <div class="field"><label>Nombre</label><select id="lg-name" required><option value="">Seleccione un perfil primero</option></select></div>
+        <div class="field"><label>Contraseña</label><input id="lg-pass" type="password" required autocomplete="current-password"></div>
+        <button class="btn primary" id="lg-btn" type="submit">Ingresar</button>
+      </form>
+
+      <form id="f-family" hidden>
+        <p class="muted" style="margin:0">Ingrese el RUT del estudiante, sin puntos y con guión (ej. 12345678-9), para revisar su situación de evaluaciones.</p>
+        <div class="field"><label>RUT del estudiante</label><input id="lg-rut" placeholder="12345678-9" style="text-align:center;font-weight:700;font-size:1.1rem" required></div>
+        <button class="btn success" type="submit"><i class="fa-solid fa-magnifying-glass"></i> Consultar situación</button>
+      </form>
+      <p id="lg-status" class="muted" style="margin:0;text-align:center"></p>
+    </div>
+  </div>
+</section>
+
+<section id="portal" class="portal" hidden></section>
+
+<!-- ============ APLICACIÓN ============ -->
+<div id="app" class="shell" hidden>
+  <aside class="side">
+    <div class="brand"><img id="sd-logo" alt="" hidden><div class="ic" id="sd-icon"><i class="fa-solid fa-school"></i></div>
+      <div><b>Evaluaciones<br>Pendientes</b><small>Marina de Chile</small></div></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot"><span id="year"></span> · Plataforma UTP</div>
+  </aside>
+  <main class="main">
+    <div class="top">
+      <div class="muted" id="top-title"></div>
+      <div class="userbox">
+        <div><b id="u-name"></b><small id="u-role" class="muted"></small></div>
+        <button class="icon-btn" id="btn-sync" title="Actualizar datos"><i class="fa-solid fa-rotate"></i></button>
+        <button class="icon-btn" id="btn-pass" title="Cambiar mi contraseña"><i class="fa-solid fa-key"></i></button>
+        <button class="icon-btn" id="btn-out" title="Cerrar sesión"><i class="fa-solid fa-right-from-bracket"></i></button>
+      </div>
+    </div>
+    <img id="bn-img" class="banner" alt="" hidden>
+    <div id="view"></div>
+  </main>
+</div>
+
+<div id="toasts"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/rules.js"></script>
+<script src="js/actions.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/v-pending.js"></script>
+<script src="js/v-register.js"></script>
+<script src="js/v-people.js"></script>
+<script src="js/v-admin.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
+

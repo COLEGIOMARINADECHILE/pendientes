@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Migración Firebase → Apps Script</title>
+<style>
+body{font-family:system-ui,Segoe UI,sans-serif;background:#f3f5fa;color:#17213a;margin:0;padding:32px}
+.box{max-width:760px;margin:auto;background:#fff;border-radius:16px;padding:32px;box-shadow:0 8px 30px -12px rgba(20,30,60,.25)}
+h1{margin:0 0 6px}p.s{color:#667392;margin:0 0 24px}label{display:block;font-weight:600;margin:16px 0 6px;font-size:.9rem}
+input,select{width:100%;padding:12px 14px;border:1px solid #dbe2ef;border-radius:10px;font:inherit;box-sizing:border-box}
+button{margin-top:18px;padding:12px 22px;border:0;border-radius:10px;background:#3461e8;color:#fff;font:inherit;font-weight:600;cursor:pointer}
+button:disabled{opacity:.5;cursor:wait}button.g{background:#12a36b}pre{background:#0f1b38;color:#cfe1ff;padding:16px;border-radius:12px;min-height:120px;white-space:pre-wrap;font-size:.85rem}
+.warn{background:#fff4dc;border-left:5px solid #d98a0b;padding:12px 16px;border-radius:8px;font-size:.9rem}
+</style></head><body>
+<div class="box">
+<h1>Migrar datos de Firebase a Apps Script</h1>
+<p class="s">Copia usuarios, estudiantes, evaluaciones y configuración al libro de Google Sheets. No borra nada en Firebase.</p>
+<div class="warn">Abra este archivo <b>directamente desde su computador</b> (doble clic). No lo suba a GitHub: está en la carpeta <code>herramientas</code>, que <code>.gitignore</code> excluye.</div>
+
+<label>URL de la aplicación web de Apps Script (termina en /exec)</label>
+<input id="url" placeholder="https://script.google.com/macros/s/.../exec">
+<button id="b1">1. Conectar</button>
+
+<div id="s2" hidden>
+  <label>Administrador del sistema nuevo</label><select id="adm"></select>
+  <label>Contraseña (si es la primera vez: Marina2025*)</label><input id="pw" type="password">
+  <button id="b2">2. Leer Firebase y migrar</button>
+</div>
+<pre id="log">Esperando…</pre>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script>
+const FIREBASE = { apiKey:"AIzaSyBVcDcIN6caANqRrfbVKao8dHVrNFrRZ9U", authDomain:"pendientessegundociclo.firebaseapp.com", projectId:"pendientessegundociclo", storageBucket:"pendientessegundociclo.appspot.com", messagingSenderId:"633970608522", appId:"1:633970608522:web:560163652e78b7bd36a073" };
+const $=id=>document.getElementById(id);
+const log=t=>{$('log').textContent+='\n'+t;$('log').scrollTop=1e9};
+let URL_API='', TOKEN='';
+async function call(action,payload){
+  const r=await fetch(URL_API,{method:'POST',body:JSON.stringify({action,token:TOKEN,...payload})});
+  const j=await r.json(); if(!j.ok) throw new Error(j.error||'Error'); return j;
+}
+$('b1').onclick=async()=>{
+  URL_API=$('url').value.trim(); if(!URL_API) return;
+  try{ const j=await call('publicUsers',{}); const adm=j.users.filter(u=>u.role==='admin');
+    $('adm').innerHTML=adm.map(u=>`<option value="${u.id}">${u.name}</option>`).join(''); $('s2').hidden=false; log('Conectado. '+j.users.length+' usuario(s) en el sistema nuevo.');
+  }catch(e){ log('ERROR: '+e.message); }
+};
+$('b2').onclick=async()=>{
+  const btn=$('b2'); btn.disabled=true;
+  try{
+    log('Iniciando sesión en Apps Script…');
+    const s=await call('login',{userId:$('adm').value,password:$('pw').value}); TOKEN=s.token;
+    log('Leyendo Firebase…');
+    firebase.initializeApp(FIREBASE); await firebase.auth().signInAnonymously();
+    const db=firebase.firestore();
+    const read=async c=>(await db.collection(c).get()).docs.map(d=>({id:d.id,...d.data()}));
+    const [users,students,evals]=await Promise.all([read('app_users'),read('students'),read('evaluations')]);
+    const get=async(c,d)=>{const x=await db.collection(c).doc(d).get();return x.exists?x.data():{}};
+    const general=await get('settings','general'), cfg=await get('settings','config'), ag=await get('config','agendamiento');
+    log(`Firebase: ${users.length} usuarios, ${students.length} estudiantes, ${evals.length} evaluaciones.`);
+
+    const config={...general,...cfg}; delete config.bannerUrl; delete config.logoUrl;
+    if(ag&&ag.days!==undefined) config.rule={enabled:ag.enabled!==false,days:ag.days,cutoff:ag.cutoff||'12:00'};
+    const branding={id:'branding',banner:general.bannerUrl||'',logo:general.logoUrl||''};
+
+    const send=async(name,docs)=>{ for(let i=0;i<docs.length;i+=500){ await call('importAll',{collections:{[name]:docs.slice(i,i+500)}}); log(`  ${name}: ${Math.min(i+500,docs.length)}/${docs.length}`);} };
+    await send('users',users);
+    await send('students',students);
+    await send('evaluations',evals);
+    await send('settings',[{id:'config',...config},branding]);
+    log('\n✔ MIGRACIÓN COMPLETA. Ya puede abrir la plataforma. Ingrese con su usuario de siempre.\nRecuerde eliminar el usuario "ADMINISTRADOR" inicial desde Administración > Usuarios.');
+  }catch(e){ log('ERROR: '+e.message); } finally{ btn.disabled=false; }
+};
+</script></body></html>
