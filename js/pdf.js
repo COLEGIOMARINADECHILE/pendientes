@@ -1,4 +1,4 @@
-/* ===== Documentos PDF: listados, nóminas de firmas y cartas a las familias ===== */
+﻿/* ===== Documentos PDF: listados, nóminas de firmas y cartas a las familias ===== */
 const PDF = {
   M: 20,
   doc: o => new window.jspdf.jsPDF({ format: 'letter', unit: 'mm', orientation: o || 'portrait' }),
@@ -92,48 +92,57 @@ const PDF = {
     evals.forEach(e => (by[e.course + '||' + e.studentName] = by[e.course + '||' + e.studentName] || []).push(e));
     const keys = Object.keys(by).sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
     const doc = PDF.doc();
-    keys.forEach((k, i) => { if (i) doc.addPage(); PDF.letter(doc, by[k][0].studentName, by[k][0].course, by[k]); });
+    keys.forEach((k, i) => { if (i) doc.addPage(); const l = by[k]; PDF.letter(doc, l[0].studentName, l[0].course, l, PDF.fitScale(l[0].studentName, l[0].course, l)); });
     PDF.out(doc, `Cartas_Citacion_${D.today()}.pdf`, mode);
     return keys.length;
   },
 
-  letter(doc, name, course, evals) {
+  /** Dibuja la carta en UNA hoja con la escala indicada. Devuelve true si todo cabe antes de la firma. */
+  letter(doc, name, course, evals, sc = 1) {
     const W = doc.internal.pageSize.width, wide = W - PDF.M * 2, H = doc.internal.pageSize.height;
     PDF.header(doc, 'COMUNICACIÓN DE EVALUACIONES PENDIENTES', course);
     const st = studentOf(name, course), g = st ? st.gender : 'O';
     const el = g === 'M' ? 'el' : g === 'F' ? 'la' : 'el/la', del = g === 'M' ? 'del' : g === 'F' ? 'de la' : 'del/de la', pup = g === 'M' ? 'su pupilo' : g === 'F' ? 'su pupila' : 'su pupilo/a';
-    let y = 56;
-    doc.setFontSize(11); doc.text(`Estimada familia ${del} estudiante: ${fmtName(name)} (${course})`, PDF.M, y); y += 9;
+    let y = 54;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11 * sc); doc.text(`Estimada familia ${del} estudiante: ${fmtName(name)} (${course})`, PDF.M, y); y += 8 * sc;
     const intro = `Junto con saludarles, les escribimos para invitarles a seguir acompañando el proceso educativo de ${pup}. En concordancia con la Ley General de Educación (Ley 20.370, Art. 4) y el Decreto 67 sobre evaluación, les comunicamos que ${el} estudiante debe presentarse a rendir las siguientes evaluaciones pendientes para resguardar su trayectoria educativa:`;
-    const t1 = doc.splitTextToSize(intro, wide); doc.text(t1, PDF.M, y); y += t1.length * 5 + 4;
+    const t1 = doc.splitTextToSize(intro, wide); doc.text(t1, PDF.M, y); y += t1.length * 5 * sc + 3;
 
     doc.autoTable({
       head: [['Asignatura', 'Docente', 'Instrumento', 'Contenido', 'Fecha', 'Hora', 'Sala', 'Oport.']],
       body: evals.map(e => [e.subject, titleCase(e.teacher), e.instrumentType || '-', e.content || '-', e.citationDate ? D.long(e.citationDate) : 'Por definir', /^\d\d:\d\d$/.test(e.citationTime || '') ? e.citationTime : (e.citationTime || '-'), e.room || 'Por asignar', isUtp(e) ? 'UTP' : `${attempt(e)}ª de 3`]),
-      startY: y, margin: { left: PDF.M, right: PDF.M }, theme: 'grid', headStyles: { fillColor: [74, 105, 132] }, styles: { fontSize: 8, cellPadding: 2 },
+      startY: y, margin: { left: PDF.M, right: PDF.M }, theme: 'grid', headStyles: { fillColor: [15, 105, 196] }, styles: { fontSize: 8 * sc, cellPadding: 1.8 * sc },
       columnStyles: { 6: { fontStyle: 'bold' }, 7: { fontStyle: 'bold', halign: 'center' } }
     });
-    y = doc.lastAutoTable.finalY + 8;
+    y = doc.lastAutoTable.finalY + 6;
 
     const ultima = evals.some(e => attempt(e) === 3 && !isUtp(e)), utp = evals.some(isUtp), c = Cfg.coord(course);
     let aviso = `${el[0].toUpperCase() + el.slice(1)} estudiante debe presentarse en la sala, fecha y hora indicadas. Se dispone de tres citaciones enviadas al hogar; la columna "Oport." señala en cuál va cada evaluación.`;
     if (ultima) aviso += ' Hay evaluaciones en su 3ª y ÚLTIMA citación: de no asistir, pasarán a ser aplicadas por la Unidad Técnica Pedagógica dentro del horario de clases, sin nueva citación al hogar.';
     if (utp) aviso += ' Las evaluaciones marcadas "UTP" ya agotaron las citaciones al hogar: las aplica la Unidad Técnica Pedagógica en el día y hora que ella determine. Es muy importante que el/la estudiante asista regularmente a clases.';
     if (c.email) aviso += `\n\nAnte cualquier duda escriba a ${c.email} (${c.title}${c.name ? ', ' + titleCase(c.name) : ''}).`;
-    doc.setFontSize(9); const lines = doc.splitTextToSize(aviso, wide - 14), alto = lines.length * 4.4 + 14;
-    if (y + alto > H - 50) { doc.addPage(); y = 30; }
+    doc.setFontSize(9 * sc); const lines = doc.splitTextToSize(aviso, wide - 14), alto = lines.length * 4.4 * sc + 14 * sc;
     const hot = ultima || utp;
-    doc.setFillColor(...(hot ? [255, 244, 235] : [239, 246, 255])); doc.setDrawColor(...(hot ? [224, 96, 13] : [59, 130, 246])); doc.setLineWidth(.7);
+    doc.setFillColor(...(hot ? [255, 244, 235] : [232, 241, 251])); doc.setDrawColor(...(hot ? [224, 96, 13] : [15, 105, 196])); doc.setLineWidth(.7);
     doc.roundedRect(PDF.M, y, wide, alto, 2, 2, 'FD');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...(hot ? [154, 52, 18] : [36, 72, 189]));
-    doc.text(utp ? 'IMPORTANTE: EVALUACIONES A CARGO DE UTP' : ultima ? 'IMPORTANTE: ÚLTIMA CITACIÓN ENVIADA AL HOGAR' : 'IMPORTANTE: SALA Y NÚMERO DE OPORTUNIDAD', PDF.M + 7, y + 6.5);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(0); doc.text(lines, PDF.M + 7, y + 12); doc.setLineWidth(.2);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5 * sc); doc.setTextColor(...(hot ? [154, 52, 18] : [10, 79, 158]));
+    doc.text(utp ? 'IMPORTANTE: EVALUACIONES A CARGO DE UTP' : ultima ? 'IMPORTANTE: ÚLTIMA CITACIÓN ENVIADA AL HOGAR' : 'IMPORTANTE: SALA Y NÚMERO DE OPORTUNIDAD', PDF.M + 7, y + 6 * sc + .5);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9 * sc); doc.setTextColor(0); doc.text(lines, PDF.M + 7, y + 11.5 * sc + .5); doc.setLineWidth(.2);
 
-    const fy = H - 32; doc.setFontSize(10);
+    const fy = H - 30; doc.setFontSize(10);
     doc.text('__________________________________', PDF.M + 4, fy); doc.text('Firma Apoderado / Toma de conocimiento', PDF.M + 4, fy + 5);
     PDF.signature(doc, course, W - PDF.M - 68, fy);
+    return y + alto <= fy - 8;
   },
 
+  /** Busca la escala más grande con la que la carta cabe en una sola hoja. */
+  fitScale(name, course, evals) {
+    for (const sc of [1, .92, .84, .76, .68, .6, .52, .45]) {
+      const t = PDF.doc();
+      if (PDF.letter(t, name, course, evals, sc) && t.getNumberOfPages() === 1) return sc;
+    }
+    return .45;
+  },
   /** Tabla simple para cualquier listado. */
   table(title, head, rows, mode, name, orient) {
     const doc = PDF.doc(orient || 'landscape'); PDF.header(doc, title);
@@ -162,3 +171,4 @@ const PDF = {
     doc.save(`Cierre_${ev.studentName.replace(/ /g, '_')}.pdf`);
   }
 };
+

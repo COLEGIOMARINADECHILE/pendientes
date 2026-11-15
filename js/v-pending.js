@@ -1,4 +1,4 @@
-/* ===== Vista "Pendientes": una sola tabla, con pestañas y fecha/hora editables en la misma fila ===== */
+﻿/* ===== Vista "Pendientes": una sola tabla, con pestañas y fecha/hora editables en la misma fila ===== */
 const Pending = {
   tab: 'semana', sel: new Set(),
   f: { cycle: '', course: '', teacher: '', attempt: '', q: '', group: 'curso' },
@@ -35,7 +35,9 @@ const Pending = {
         <div class="actions">
           ${Auth.isAdmin() ? '<button class="btn success" onclick="App.go(\'register\')"><i class="fa-solid fa-plus"></i> Registrar</button>' : ''}
           <button class="btn" onclick="Pending.reload(this)"><i class="fa-solid fa-rotate"></i> Actualizar</button>
-          <button class="btn" onclick="Pending.printModal()"><i class="fa-solid fa-print"></i> Imprimir / PDF</button>
+          <button class="btn" onclick="Pending.printModal('firmas')"><i class="fa-solid fa-clipboard-user"></i> Lista de firmas</button>
+          <button class="btn" onclick="Pending.printModal('cartas')"><i class="fa-solid fa-envelope-open-text"></i> Citaciones por curso</button>
+          <button class="btn" onclick="Pending.printModal('lista')"><i class="fa-solid fa-file-pdf"></i> Listado PDF</button>
         </div>
       </div>
       <div class="kpis" id="p-kpis"></div>
@@ -218,12 +220,12 @@ const Pending = {
   async reload(btn) { await UI.busy(btn, async () => { await DB.load(); this.fillFilters(); this.refresh(); UI.toast('Datos actualizados.', 'success', 1800); }); },
 
   /* ---------- impresión ---------- */
-  async printModal() {
+  async printModal(pre) {
     const v = await UI.form({
       title: 'Imprimir / descargar', ok: 'Generar',
       intro: 'Elija el documento. Se incluyen solo las evaluaciones citadas dentro del rango de fechas.',
       fields: [
-        { name: 'doc', label: 'Documento', type: 'select', value: 'firmas', full: true, options: [['firmas', 'Nómina de rendición con firmas'], ['cartas', 'Cartas de citación a las familias'], ['lista', 'Listado de pendientes (lo que se ve en pantalla)']] },
+        { name: 'doc', label: 'Documento', type: 'select', value: pre || 'firmas', full: true, options: [['firmas', 'Nómina de rendición con firmas'], ['cartas', 'Citaciones individuales (una hoja por estudiante)'], ['lista', 'Listado de pendientes (lo que se ve en pantalla)']] },
         { name: 'cycle', label: 'Ciclo', type: 'select', value: this.f.cycle, options: [['', 'Todos'], ...CYCLES.map(c => [c.name, c.name])] },
         { name: 'course', label: 'Curso', type: 'select', value: this.f.course, options: [['', 'Todos'], ...COURSES.map(c => [c, c])] },
         { name: 'from', label: 'Citadas desde', type: 'date', value: D.today() },
@@ -244,3 +246,4 @@ const Pending = {
     else PDF.pending(evs, { text, scope }, v.mode);
   }
 };
+

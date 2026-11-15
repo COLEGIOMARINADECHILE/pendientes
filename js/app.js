@@ -1,4 +1,4 @@
-/* ===== Arranque: sesión, navegación por perfil, login y portal de familias ===== */
+﻿/* ===== Arranque: sesión, navegación por perfil, login y portal de familias ===== */
 const ROLE_LABELS = { admin: 'Administrador (Coordinación / UTP)', docente: 'Docente', asistente: 'Asistente de Educación', inspector: 'Inspectoría (consulta)', pie: 'Equipo PIE (consulta)' };
 
 const Auth = {
@@ -10,13 +10,13 @@ const Auth = {
   canContact() { return ['admin', 'asistente'].includes(this.role); }
 };
 
-const VIEWS = { pending: Pending, register: Register, history: History, students: Students, rooms: Rooms, admin: Admin, teacher: Teacher };
+const VIEWS = { pending: Pending, register: Register, history: History, students: Students, rooms: Rooms, admin: Admin, teacher: Teacher, stats: Stats };
 const NAV = {
-  admin: [['pending', 'Pendientes', 'fa-list-check'], ['register', 'Registrar evaluación', 'fa-file-circle-plus', 'cta'], ['history', 'Historial', 'fa-clock-rotate-left'], ['students', 'Estudiantes', 'fa-users'], ['rooms', 'Salas', 'fa-door-open'], ['admin', 'Administración', 'fa-gear']],
+  admin: [['pending', 'Pendientes', 'fa-list-check'], ['register', 'Registrar evaluación', 'fa-file-circle-plus', 'cta'], ['history', 'Historial', 'fa-clock-rotate-left'], ['students', 'Estudiantes', 'fa-users'], ['stats', 'Estadística', 'fa-chart-pie'], ['rooms', 'Salas', 'fa-door-open'], ['admin', 'Administración', 'fa-gear']],
   docente: [['teacher', 'Mi panel', 'fa-chalkboard-user'], ['register', 'Registrar evaluación', 'fa-file-circle-plus', 'cta'], ['history', 'Historial', 'fa-clock-rotate-left']],
   asistente: [['pending', 'Pendientes de mis cursos', 'fa-list-check']],
-  inspector: [['pending', 'Pendientes', 'fa-list-check'], ['history', 'Historial', 'fa-clock-rotate-left'], ['students', 'Estudiantes', 'fa-users']],
-  pie: [['pending', 'Pendientes', 'fa-list-check'], ['history', 'Historial', 'fa-clock-rotate-left'], ['students', 'Estudiantes', 'fa-users']]
+  inspector: [['pending', 'Pendientes', 'fa-list-check'], ['history', 'Historial', 'fa-clock-rotate-left'], ['students', 'Estudiantes', 'fa-users'], ['stats', 'Estadística', 'fa-chart-pie']],
+  pie: [['pending', 'Pendientes', 'fa-list-check'], ['history', 'Historial', 'fa-clock-rotate-left'], ['students', 'Estudiantes', 'fa-users'], ['stats', 'Estadística', 'fa-chart-pie']]
 };
 
 const App = {
@@ -34,6 +34,7 @@ const App = {
   applyBrand() {
     const set = (id, src) => { const e = $(id); if (!e) return; e.hidden = !src; if (src) e.src = src; };
     set('#lg-logo', Brand.logo); set('#sd-logo', Brand.logo); set('#bn-img', Brand.banner);
+    $('#lg-badges').innerHTML = (Brand.badges || []).map(b => `<img src="${esc(b)}" alt="Insignia">`).join('');
     $('#lg-icon').hidden = !!Brand.logo; $('#sd-icon').hidden = !!Brand.logo;
   },
 
@@ -62,7 +63,7 @@ async function initLogin() {
   let users = [];
   try {
     const [bnd, pu] = await Promise.all([API.call('branding').catch(() => ({})), API.call('publicUsers')]);
-    Object.assign(Brand, { banner: bnd.banner || '', logo: bnd.logo || '' }); App.applyBrand(); users = pu.users;
+    Object.assign(Brand, { banner: bnd.banner || '', logo: bnd.logo || '', badges: bnd.badges || [] }); App.applyBrand(); users = pu.users;
     if (API.demo) status.innerHTML = '<span class="pill warn">MODO DEMO</span> Administrador: <b>ADMINISTRADOR / admin</b> · Docente: <b>ANA PEREZ / 1234</b> · RUT de prueba: <b>24111222-3</b>';
   } catch (e) { status.textContent = 'No se pudo conectar con el servidor: ' + e.message; }
 
@@ -93,7 +94,7 @@ async function initLogin() {
 async function bootApp() {
   await DB.load();
   const b = await API.call('branding').catch(() => ({}));
-  Object.assign(Brand, { banner: b.banner || '', logo: b.logo || '' });
+  Object.assign(Brand, { banner: b.banner || '', logo: b.logo || '', badges: b.badges || [] });
   await App.enter();
 }
 
@@ -138,3 +139,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   initLogin();
 });
+

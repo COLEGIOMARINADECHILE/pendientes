@@ -154,11 +154,23 @@ const Admin = {
       <div class="fgrid" style="margin-top:14px"><div class="field"><label>Banner principal (recomendado 1200×220 px)</label><input type="file" id="im-banner" accept="image/*"><img id="im-bp" src="${esc(Brand.banner)}" ${Brand.banner ? '' : 'hidden'} style="max-height:90px;margin-top:8px;object-fit:contain"></div>
         <div class="field"><label>Insignia / logo (recomendado 400×400 px)</label><input type="file" id="im-logo" accept="image/*"><img id="im-lp" src="${esc(Brand.logo)}" ${Brand.logo ? '' : 'hidden'} style="max-height:90px;margin-top:8px;object-fit:contain"></div></div>
       <small>El logo aparece en la portada, el menú y los PDF. Las imágenes se reducen automáticamente y se guardan en Google Sheets.</small>
-      <div style="margin-top:14px"><button class="btn primary" onclick="Admin.saveBrand(this)"><i class="fa-solid fa-floppy-disk"></i> Guardar imágenes</button></div></div>`;
+      <div style="margin-top:14px"><button class="btn primary" onclick="Admin.saveBrand(this)"><i class="fa-solid fa-floppy-disk"></i> Guardar imágenes</button></div></div>
+      <div class="card"><h2><i class="fa-solid fa-award"></i> Insignias en la portada</h2>
+        <p class="muted">Agregue las insignias que desee (colegio, SLEP, Mineduc, programas…). Quedan guardadas y se muestran en la portada de acceso.</p>
+        <div class="badges" id="bd-list" style="margin:12px 0"></div>
+        <label class="btn"><i class="fa-solid fa-plus"></i> Agregar insignia<input type="file" id="bd-file" accept="image/*" hidden></label></div>`;
+    this.drawBadges();
+    $('#bd-file').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) UI.busy(null, async () => { const img = await UI.resizeImage(f, 240, 240, 'image/png'); await this.saveBadges([...(Brand.badges || []), img]); }); };
     this.pending = {};
     $('#im-banner').onchange = async e => { if (e.target.files[0]) { this.pending.banner = await UI.resizeImage(e.target.files[0], 1200, 300, 'image/jpeg'); $('#im-bp').src = this.pending.banner; $('#im-bp').hidden = false; } };
     $('#im-logo').onchange = async e => { if (e.target.files[0]) { this.pending.logo = await UI.resizeImage(e.target.files[0], 400, 400, 'image/png'); $('#im-lp').src = this.pending.logo; $('#im-lp').hidden = false; } };
   },
+  drawBadges() {
+    const l = $('#bd-list'); if (!l) return;
+    l.innerHTML = (Brand.badges || []).map((b, i) => `<div style="position:relative"><img src="${esc(b)}" alt="Insignia"><button class="icon-btn" title="Quitar" onclick="Admin.delBadge(${i})" style="position:absolute;top:-6px;right:-6px;background:#fff;border:1px solid var(--line);width:22px;height:22px"><i class="fa-solid fa-xmark" style="font-size:.7rem"></i></button></div>`).join('') || '<span class="muted">Aún no hay insignias agregadas.</span>';
+  },
+  async saveBadges(list) { await API.call('saveBranding', { badges: list }); Brand.badges = list; this.drawBadges(); App.applyBrand(); UI.toast('Insignias guardadas.', 'success'); },
+  delBadge(i) { UI.busy(null, () => { const l = [...(Brand.badges || [])]; l.splice(i, 1); return this.saveBadges(l); }); },
   saveBrand(btn) {
     if (!this.pending.banner && !this.pending.logo) return UI.toast('Primero seleccione una imagen.', 'error');
     UI.busy(btn, async () => { await API.call('saveBranding', this.pending); Object.assign(Brand, this.pending); App.applyBrand(); this.pending = {}; UI.toast('Imágenes guardadas.', 'success'); });
@@ -169,8 +181,47 @@ const Admin = {
     el.innerHTML = `<div class="card"><h2><i class="fa-solid fa-database"></i> Datos y respaldo</h2>
       <div class="kpis" style="margin-top:14px">${[['Estudiantes', DB.students.length], ['Evaluaciones', DB.evaluations.length], ['Usuarios', DB.users.length]].map(([l, n]) => `<div class="kpi" style="cursor:default"><b>${n}</b><span>${l}</span></div>`).join('')}</div>
       <p class="muted">${API.demo ? '<b>Modo demo:</b> los datos viven solo en este navegador. Configure la URL de Apps Script en <code>js/config.js</code> para guardar en Google Sheets.' : 'Los datos se guardan en el libro de Google Sheets vinculado a su Apps Script (hojas: usuarios, estudiantes, evaluaciones, configuracion).'}</p>
+      ${API.demo ? '' : `<div class="notice" style="margin-bottom:14px"><b><i class="fa-solid fa-cloud-arrow-down"></i> Traspasar datos desde la plataforma anterior (Firebase)</b><p style="margin:6px 0 10px">Copia <b>todo</b>: usuarios, estudiantes, evaluaciones con su historial, salas, horarios, coordinadores, días bloqueados, asignaturas, regla de anticipación, banner e insignia. No borra nada de Firebase y puede repetirse sin duplicar.</p>
+        <button class="btn primary" onclick="Admin.migrate(this)"><i class="fa-solid fa-right-left"></i> Traspasar desde Firebase</button>
+        <label class="btn" style="margin-left:8px"><i class="fa-solid fa-file-import"></i> Importar un respaldo JSON<input type="file" accept=".json" hidden onchange="Admin.importJson(this)"></label></div>`}
       <div class="actions"><button class="btn" onclick="Admin.backup()"><i class="fa-solid fa-download"></i> Descargar respaldo (JSON)</button>
         ${API.demo ? '<button class="btn danger" onclick="Admin.resetDemo()"><i class="fa-solid fa-rotate-left"></i> Restablecer datos de ejemplo</button>' : ''}</div></div>`;
+  },
+  /* Traspaso de Firebase → Apps Script, sin archivos aparte */
+  async migrate(btn) {
+    if (!await UI.confirm('Traspasar desde Firebase', 'Se leerán todos los datos de la plataforma anterior y se copiarán a Google Sheets. Los registros que ya existan se actualizan, sin duplicarse.', 'Iniciar traspaso')) return;
+    const d = UI.modal({ title: 'Traspaso en curso', body: '<pre id="mg-log" style="background:#0f1b38;color:#cfe1ff;padding:14px;border-radius:10px;min-height:160px;max-height:50vh;overflow:auto;white-space:pre-wrap;font-size:.82rem;margin:0">Iniciando…</pre>' });
+    const log = t => { const p = $('#mg-log', d); if (p) { p.textContent += '\n' + t; p.scrollTop = 1e9; } };
+    try {
+      const base = 'https://www.gstatic.com/firebasejs/8.10.1/';
+      for (const f of ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js']) await UI.loadScript(base + f);
+      const app = firebase.initializeApp({ apiKey: 'AIzaSyBVcDcIN6caANqRrfbVKao8dHVrNFrRZ9U', authDomain: 'pendientessegundociclo.firebaseapp.com', projectId: 'pendientessegundociclo', storageBucket: 'pendientessegundociclo.appspot.com', messagingSenderId: '633970608522', appId: '1:633970608522:web:560163652e78b7bd36a073' }, 'mig' + Date.now());
+      await app.auth().signInAnonymously(); const fs = app.firestore();
+      const read = async c => (await fs.collection(c).get()).docs.map(x => ({ id: x.id, ...x.data() }));
+      const one = async (c, id) => { const x = await fs.collection(c).doc(id).get(); return x.exists ? x.data() : {}; };
+      log('Leyendo Firebase…');
+      const [users, students, evals] = [await read('app_users'), await read('students'), await read('evaluations')];
+      const general = await one('settings', 'general'), cfg = await one('settings', 'config'), ag = await one('config', 'agendamiento');
+      log(`Encontrados: ${users.length} usuarios, ${students.length} estudiantes, ${evals.length} evaluaciones.`);
+      const config = { ...general, ...cfg }; delete config.bannerUrl; delete config.logoUrl;
+      if (ag && ag.days !== undefined) config.rule = { enabled: ag.enabled !== false, days: ag.days, cutoff: ag.cutoff || '12:00' };
+      const send = async (name, docs) => { for (let i = 0; i < docs.length; i += 400) { await API.call('importAll', { collections: { [name]: docs.slice(i, i + 400) } }); log(`  ${name}: ${Math.min(i + 400, docs.length)}/${docs.length}`); } };
+      await send('users', users); await send('students', students); await send('evaluations', evals);
+      await send('settings', [{ id: 'config', ...config }, { id: 'branding', banner: general.bannerUrl || '', logo: general.logoUrl || '' }]);
+      log('Actualizando la plataforma…'); await DB.load();
+      const b = await API.call('branding'); Object.assign(Brand, { banner: b.banner || '', logo: b.logo || '', badges: b.badges || [] }); App.applyBrand();
+      log('\n✔ TRASPASO COMPLETO. Ya puede cerrar esta ventana.'); this.data($('#ad-body'));
+    } catch (e) { log('ERROR: ' + (e.message || e)); }
+  },
+  importJson(inp) {
+    const f = inp.files[0]; inp.value = ''; if (!f) return;
+    UI.busy(null, async () => {
+      const j = JSON.parse(await f.text()), cols = {};
+      if (j.students) cols.students = j.students; if (j.evaluations) cols.evaluations = j.evaluations;
+      if (j.config) cols.settings = [{ id: 'config', ...j.config }];
+      for (const [c, docs] of Object.entries(cols)) for (let i = 0; i < docs.length; i += 400) await API.call('importAll', { collections: { [c]: docs.slice(i, i + 400) } });
+      await DB.load(); UI.toast('Respaldo importado.', 'success'); this.data($('#ad-body'));
+    });
   },
   backup() { UI.download(`respaldo_evaluaciones_${D.today()}.json`, JSON.stringify({ exportado: new Date().toISOString(), students: DB.students, evaluations: DB.evaluations, users: DB.users, config: DB.config }, null, 1)); },
   async resetDemo() { if (await UI.confirm('Restablecer demo', 'Se borrarán los cambios hechos en este navegador y volverán los datos de ejemplo.', 'Restablecer', true)) { Mock.reset(); location.reload(); } }

@@ -205,3 +205,9 @@ h1,h2,h3{font-weight:900}
 .seg button.on{color:var(--brand-d)}
 .modal-head{background:var(--brand-l)}
 .modal-head h3{color:var(--brand-d)}
+
+.bar{position:relative;height:20px;background:#edf1f8;border-radius:999px;overflow:hidden;min-width:90px}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:999px}
+.bar span{position:relative;z-index:1;font-size:.72rem;font-weight:900;line-height:20px;padding-left:10px;color:#16203a}
+.badges{display:flex;flex-wrap:wrap;gap:10px}
+.badges img{height:54px;width:54px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:50%;padding:5px}

@@ -1,4 +1,4 @@
-/* ===== Cliente de la API (Apps Script) + almacén en memoria + modo demo ===== */
+﻿/* ===== Cliente de la API (Apps Script) + almacén en memoria + modo demo ===== */
 const API = {
   token: sessionStorage.getItem('ep_token') || '',
   user: JSON.parse(sessionStorage.getItem('ep_user') || 'null'),
@@ -127,7 +127,7 @@ const Mock = {
     const me = () => { const u = d.users.find(x => 'mock-' + x.id === token); if (!u) throw new Error('Sesión expirada.'); return u; };
     switch (action) {
       case 'publicUsers': return { users: d.users.map(u => ({ id: u.id, name: u.name, role: u.role, mainLevel: u.mainLevel || null })) };
-      case 'branding': return { banner: d.branding.banner || '', logo: d.branding.logo || '' };
+      case 'branding': return { banner: d.branding.banner || '', logo: d.branding.logo || '', badges: d.branding.badges || [] };
       case 'login': {
         const u = d.users.find(x => x.id === p.userId);
         if (!u || u.password !== p.password) throw new Error('Usuario o contraseña incorrectos.');
@@ -153,7 +153,7 @@ const Mock = {
       case 'deleteUser': d.users = d.users.filter(x => x.id !== p.id); this.save(d); return { users: d.users.map(pub) };
       case 'notify': me(); return { sent: 0, noMail: 0, demo: true };
       case 'changePassword': me().password = p.password; this.save(d); return {};
-      case 'saveBranding': Object.assign(d.branding, p.banner ? { banner: p.banner } : {}, p.logo ? { logo: p.logo } : {}); this.save(d); return {};
+      case 'saveBranding': Object.assign(d.branding, p.banner ? { banner: p.banner } : {}, p.logo ? { logo: p.logo } : {}, p.badges ? { badges: p.badges } : {}); this.save(d); return {};
       case 'portal': {
         const rut = normRut(p.rut), s = d.students.find(x => normRut(x.rut) === rut && !x.withdrawn);
         if (!s) throw new Error('RUT no encontrado.');
@@ -163,3 +163,4 @@ const Mock = {
     }
   }
 };
+
