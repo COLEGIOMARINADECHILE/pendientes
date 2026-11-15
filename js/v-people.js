@@ -1,4 +1,4 @@
-/* ===== Ficha del estudiante, Estudiantes, Historial, Mi panel docente y Salas ===== */
+﻿/* ===== Ficha del estudiante, Estudiantes, Historial, Mi panel docente y Salas ===== */
 
 /* ---------- Ficha: todo sobre un estudiante en una sola ventana ---------- */
 const Ficha = {
@@ -104,7 +104,7 @@ const Students = {
       const lic = licenseOf(s), sus = suspensionOf(s), pend = DB.evaluations.filter(e => e.studentName === s.name && e.course === s.course && e.status === ST.PEND).length;
       const sit = [lic ? `<span class="pill ${lic.long ? 'vio' : 'sky'}">Reposo ${D.fmt(lic.end)}${lic.vigente ? '' : ' (fin)'}</span>` : '', sus ? `<span class="pill warn">Susp. ${D.fmt(sus.end)}</span>` : '', pend ? `<span class="pill brand">${pend} pend.</span>` : '', s.withdrawn ? `<span class="pill dark">${esc(s.withdrawnReason || 'Retirado')} · ${D.fmt(s.withdrawnDate)}</span>` : ''].join(' ');
       return `<tr><td><b>${esc(fmtName(s.name))}</b><br><small>${esc(s.course)}</small></td>
-        <td>${s.rut ? esc(s.rut) : '<span class="pill warn">Sin RUT</span>'}<br>${s.email ? `<small><i class="fa-regular fa-envelope"></i> ${esc(s.email)}</small>` : '<small class="muted">Sin correo</small>'}</td>
+        <td>${s.rut ? esc(s.rut) : '<span class="pill warn">Sin RUT</span>'}<br>${studentEmail(s) ? `<small><i class="fa-regular fa-envelope"></i> ${esc(studentEmail(s))}</small>` : '<small class="muted">Sin correo</small>'}</td>
         <td>${adm ? `<select style="width:84px" onchange="Students.setGender('${s.id}',this.value)">${opts([['M', 'Hombre'], ['F', 'Mujer'], ['O', 'Otro']], s.gender || 'O')}</select>` : esc(s.gender || '')}</td>
         <td>${adm && !s.withdrawn ? `<select style="width:150px" onchange="Students.setStatus('${s.id}',this.value)">${opts(['Activo', 'PIE', ST.PLAN], s.status)}</select>` : esc(s.status)}</td>
         <td><div class="chips">${sit}</div></td>
@@ -125,7 +125,7 @@ const Students = {
     { name: 'rut', label: 'RUT (sin puntos, con guión)', value: v.rut || '', placeholder: '12345678-9', hint: 'Es la clave con que la familia consulta en la portada.' },
     { name: 'gender', label: 'Género (para las cartas)', type: 'select', value: v.gender || 'O', options: [['M', 'Hombre'], ['F', 'Mujer'], ['O', 'Otro / sin especificar']] },
     { name: 'course', label: 'Curso', type: 'select', value: v.course || '', options: COURSES.map(c => [c, c]) },
-    { name: 'email', label: 'Correo del estudiante', type: 'email', value: v.email || '', hint: 'Recibe el aviso cuando se ingresa una evaluación pendiente.' },
+    { name: 'email', label: 'Correo del estudiante', type: 'email', value: studentEmail(v), placeholder: '12345678-9@andaliensur.cl', hint: 'Se genera solo desde el RUT (RUT@andaliensur.cl). Puede editarlo si es distinto.' },
     { name: 'guardianEmail', label: 'Correo del apoderado (opcional)', type: 'email', value: v.guardianEmail || '' }],
   async add() {
     const v = await UI.form({ title: 'Agregar estudiante', fields: this.studentFields({ course: this.f.course || COURSES[0] }) });
@@ -331,3 +331,4 @@ const Rooms = {
     PDF.rooms(this.dist, $('#rm-cycle').value, $('#rm-date').value, $('#rm-order').value, 'print');
   }
 };
+

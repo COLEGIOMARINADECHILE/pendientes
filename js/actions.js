@@ -1,5 +1,7 @@
-/* ===== Acciones de dominio: todo cambio de datos pasa por aquí ===== */
+﻿/* ===== Acciones de dominio: todo cambio de datos pasa por aquí ===== */
 const Act = {
+  /* Si el correo es el automático del RUT no se guarda, así se actualiza solo si cambia el RUT */
+  mailToStore: (v, oldRut) => { const m = (v.email || '').trim().toLowerCase(); return (m === autoEmail(v.rut) || m === autoEmail(oldRut)) ? '' : m; },
   who: () => (Auth.user ? Auth.user.name : 'Sistema'),
   obs: text => ({ date: new Date().toISOString(), by: Act.who(), text }),
   op: (id, data) => ({ c: 'evaluations', op: 'update', id, data }),
@@ -143,11 +145,11 @@ const Act = {
     if (name !== st.name || course !== st.course) {
       Act.pendingOf(st).forEach(ev => ops.push(Act.op(ev.id, { studentName: name, course, ...(cycleOf(course) !== cycleOf(st.course) ? { room: null } : {}) })));
     }
-    ops.push(Act.sop(st.id, { name, course, rut: normRut(v.rut), gender: v.gender, email: (v.email || '').trim(), guardianEmail: (v.guardianEmail || '').trim(), courseHistory: history }));
+    ops.push(Act.sop(st.id, { name, course, rut: normRut(v.rut), gender: v.gender, email: Act.mailToStore(v, st.rut), guardianEmail: (v.guardianEmail || '').trim(), courseHistory: history }));
     await DB.write(ops);
   },
   async addStudent(v) {
-    const doc = { name: v.name.trim().toUpperCase(), course: v.course, rut: normRut(v.rut), gender: v.gender || guessGender(v.name), status: 'Activo', email: (v.email || '').trim(), guardianEmail: (v.guardianEmail || '').trim() };
+    const doc = { name: v.name.trim().toUpperCase(), course: v.course, rut: normRut(v.rut), gender: v.gender || guessGender(v.name), status: 'Activo', email: Act.mailToStore(v), guardianEmail: (v.guardianEmail || '').trim() };
     await DB.write([{ c: 'students', op: 'set', id: newId(), data: doc }]); return doc;
   },
   async removeStudent(st) { await DB.write([{ c: 'students', op: 'delete', id: st.id }]); },
@@ -160,3 +162,5 @@ const Act = {
   },
   async saveConfig(patch) { await DB.write([{ c: 'settings', op: 'update', id: 'config', data: patch }]); }
 };
+
+

@@ -208,3 +208,8 @@ const groupByCycleCourse = evals => {
   evals.forEach(e => { const cy = cycleOf(e.course); ((g[cy] = g[cy] || {})[e.course] = g[cy][e.course] || []).push(e); });
   return CYCLES.filter(c => g[c.name]).map(c => ({ cycle: c.name, courses: c.courses.filter(x => g[c.name][x]).map(x => ({ course: x, list: g[c.name][x] })) }));
 };
+
+/* Correo institucional del estudiante: RUT sin puntos y con guión + @andaliensur.cl (editable) */
+const MAIL_DOMAIN = '@andaliensur.cl';
+const autoEmail = rut => { const r = normRut(rut); return /^\d{7,9}-[\dK]$/.test(r) ? r.toLowerCase() + MAIL_DOMAIN : ''; };
+const studentEmail = st => (st && ((st.email || '').trim() || autoEmail(st.rut))) || '';

@@ -1,4 +1,4 @@
-# Plataforma de Monitoreo de Evaluaciones Pendientes
+﻿# Plataforma de Monitoreo de Evaluaciones Pendientes
 
 Sitio estático (GitHub Pages) + base de datos en **Google Sheets** mediante **Google Apps Script**.
 
@@ -24,6 +24,9 @@ herramientas/       migrar.html (solo para usar una vez en su computador; NO se 
 > **Correos:** al ingresar una evaluación se avisa al estudiante (y apoderado, si tiene correo) usando `MailApp`. Tras pegar el nuevo `Code.gs`, ejecute `inicializar` otra vez para aceptar el permiso de enviar correos y publique una **nueva versión** de la implementación. Cuota: ~100 correos/día en cuentas Gmail, ~1.500 en Google Workspace. Los correos se registran en Estudiantes → Editar.
 
 ## 2. Traspasar los datos actuales (Firebase → Apps Script)
+
+**Recomendado:** dentro de la plataforma, Administración → Datos y respaldo → *Traspasar desde Firebase*. Busca en todas las ubicaciones de Firebase, reemplaza lo que haya en el sistema y carga todo. También permite descargar el archivo de Firebase y subirlo después. (La herramienta de abajo es la alternativa antigua.)
+
 
 1. Abra con doble clic `herramientas/migrar.html` en su computador.
 2. Pegue la URL de Apps Script → **Conectar**.
@@ -58,3 +61,4 @@ Con `API_URL` vacío la plataforma funciona con datos de ejemplo guardados solo 
 ## Reglas que se mantienen
 
 2ª y 3ª citación al hogar → 4ª oportunidad en manos de UTP (sin fecha); reposo ≥ 15 días cierra por salud; reposo menor deja sin fecha para reagendar y exige 5 días hábiles de readaptación; suspensiones no consumen oportunidad; Plan de Evaluación (solo UTP agenda); retirados fuera de todas las listas; días bloqueados; plazo de anticipación; máximo de evaluaciones por día; distribución de salas por docente.
+

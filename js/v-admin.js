@@ -1,10 +1,10 @@
-/* ===== Administración: calendario, usuarios, asignaturas, imagen y datos ===== */
+﻿/* ===== Administración: calendario, usuarios, asignaturas, imagen y datos ===== */
 const Admin = {
   tab: 'calendar',
   mount(el) {
     el.innerHTML = `
       <div class="page-head"><div><h1>Administración</h1><p>Toda la configuración del sistema en un solo lugar.</p></div></div>
-      <div class="subtabs">${[['calendar', 'Calendario y salas'], ['users', 'Usuarios'], ['subjects', 'Asignaturas'], ['brand', 'Imagen'], ['data', 'Datos y respaldo']].map(([k, l]) => `<button data-t="${k}" class="${this.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div class="subtabs">${[['calendar', 'Calendario y salas'], ['users', 'Usuarios'], ['subjects', 'Asignaturas'], ['brand', 'Imagen'], ['mail', 'Correos'], ['data', 'Datos y respaldo']].map(([k, l]) => `<button data-t="${k}" class="${this.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div id="ad-body"></div>`;
     $$('.subtabs button', el).forEach(b => b.onclick = () => { this.tab = b.dataset.t; this.mount(el); });
     this[this.tab]($('#ad-body'));
@@ -181,48 +181,133 @@ const Admin = {
     el.innerHTML = `<div class="card"><h2><i class="fa-solid fa-database"></i> Datos y respaldo</h2>
       <div class="kpis" style="margin-top:14px">${[['Estudiantes', DB.students.length], ['Evaluaciones', DB.evaluations.length], ['Usuarios', DB.users.length]].map(([l, n]) => `<div class="kpi" style="cursor:default"><b>${n}</b><span>${l}</span></div>`).join('')}</div>
       <p class="muted">${API.demo ? '<b>Modo demo:</b> los datos viven solo en este navegador. Configure la URL de Apps Script en <code>js/config.js</code> para guardar en Google Sheets.' : 'Los datos se guardan en el libro de Google Sheets vinculado a su Apps Script (hojas: usuarios, estudiantes, evaluaciones, configuracion).'}</p>
-      ${API.demo ? '' : `<div class="notice" style="margin-bottom:14px"><b><i class="fa-solid fa-cloud-arrow-down"></i> Traspasar datos desde la plataforma anterior (Firebase)</b><p style="margin:6px 0 10px">Copia <b>todo</b>: usuarios, estudiantes, evaluaciones con su historial, salas, horarios, coordinadores, días bloqueados, asignaturas, regla de anticipación, banner e insignia. No borra nada de Firebase y puede repetirse sin duplicar.</p>
-        <button class="btn primary" onclick="Admin.migrate(this)"><i class="fa-solid fa-right-left"></i> Traspasar desde Firebase</button>
-        <label class="btn" style="margin-left:8px"><i class="fa-solid fa-file-import"></i> Importar un respaldo JSON<input type="file" accept=".json" hidden onchange="Admin.importJson(this)"></label></div>`}
+      ${API.demo ? '' : `<div class="notice" style="margin-bottom:14px"><b><i class="fa-solid fa-cloud-arrow-down"></i> Traspasar desde la plataforma anterior (Firebase)</b><p style="margin:6px 0 10px">Busca los datos en <b>todas</b> las ubicaciones de Firebase, <b>elimina lo que hoy hay en este sistema</b> para no mezclar versiones y carga toda la información: usuarios, estudiantes, evaluaciones con su historial, salas, horarios, coordinadores, días bloqueados, asignaturas, banner e insignia. Firebase no se modifica.</p>
+        <div class="actions"><button class="btn primary" onclick="Admin.migrate()"><i class="fa-solid fa-right-left"></i> Traspasar desde Firebase (reemplaza todo)</button>
+        <button class="btn" onclick="Admin.downloadFirebase()"><i class="fa-solid fa-download"></i> Solo descargar el archivo de Firebase</button>
+        <label class="btn"><i class="fa-solid fa-file-import"></i> Subir respaldo y reemplazar todo<input type="file" accept=".json" hidden onchange="Admin.importJson(this)"></label></div></div>`}
       <div class="actions"><button class="btn" onclick="Admin.backup()"><i class="fa-solid fa-download"></i> Descargar respaldo (JSON)</button>
         ${API.demo ? '<button class="btn danger" onclick="Admin.resetDemo()"><i class="fa-solid fa-rotate-left"></i> Restablecer datos de ejemplo</button>' : ''}</div></div>`;
   },
-  /* Traspaso de Firebase → Apps Script, sin archivos aparte */
-  async migrate(btn) {
-    if (!await UI.confirm('Traspasar desde Firebase', 'Se leerán todos los datos de la plataforma anterior y se copiarán a Google Sheets. Los registros que ya existan se actualizan, sin duplicarse.', 'Iniciar traspaso')) return;
-    const d = UI.modal({ title: 'Traspaso en curso', body: '<pre id="mg-log" style="background:#0f1b38;color:#cfe1ff;padding:14px;border-radius:10px;min-height:160px;max-height:50vh;overflow:auto;white-space:pre-wrap;font-size:.82rem;margin:0">Iniciando…</pre>' });
-    const log = t => { const p = $('#mg-log', d); if (p) { p.textContent += '\n' + t; p.scrollTop = 1e9; } };
-    try {
-      const base = 'https://www.gstatic.com/firebasejs/8.10.1/';
-      for (const f of ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js']) await UI.loadScript(base + f);
-      const app = firebase.initializeApp({ apiKey: 'AIzaSyBVcDcIN6caANqRrfbVKao8dHVrNFrRZ9U', authDomain: 'pendientessegundociclo.firebaseapp.com', projectId: 'pendientessegundociclo', storageBucket: 'pendientessegundociclo.appspot.com', messagingSenderId: '633970608522', appId: '1:633970608522:web:560163652e78b7bd36a073' }, 'mig' + Date.now());
-      await app.auth().signInAnonymously(); const fs = app.firestore();
-      const read = async c => (await fs.collection(c).get()).docs.map(x => ({ id: x.id, ...x.data() }));
-      const one = async (c, id) => { const x = await fs.collection(c).doc(id).get(); return x.exists ? x.data() : {}; };
-      log('Leyendo Firebase…');
-      const [users, students, evals] = [await read('app_users'), await read('students'), await read('evaluations')];
-      const general = await one('settings', 'general'), cfg = await one('settings', 'config'), ag = await one('config', 'agendamiento');
-      log(`Encontrados: ${users.length} usuarios, ${students.length} estudiantes, ${evals.length} evaluaciones.`);
-      const config = { ...general, ...cfg }; delete config.bannerUrl; delete config.logoUrl;
-      if (ag && ag.days !== undefined) config.rule = { enabled: ag.enabled !== false, days: ag.days, cutoff: ag.cutoff || '12:00' };
-      const send = async (name, docs) => { for (let i = 0; i < docs.length; i += 400) { await API.call('importAll', { collections: { [name]: docs.slice(i, i + 400) } }); log(`  ${name}: ${Math.min(i + 400, docs.length)}/${docs.length}`); } };
-      await send('users', users); await send('students', students); await send('evaluations', evals);
-      await send('settings', [{ id: 'config', ...config }, { id: 'branding', banner: general.bannerUrl || '', logo: general.logoUrl || '' }]);
-      log('Actualizando la plataforma…'); await DB.load();
-      const b = await API.call('branding'); Object.assign(Brand, { banner: b.banner || '', logo: b.logo || '', badges: b.badges || [] }); App.applyBrand();
-      log('\n✔ TRASPASO COMPLETO. Ya puede cerrar esta ventana.'); this.data($('#ad-body'));
-    } catch (e) { log('ERROR: ' + (e.message || e)); }
+  /* ---------- Correos ---------- */
+  async mail(el) {
+    if (API.demo) { el.innerHTML = '<div class="card"><div class="notice">Los correos se configuran al conectar la plataforma con Apps Script.</div></div>'; return; }
+    el.innerHTML = '<div class="card"><i class="fa-solid fa-spinner fa-spin"></i> Consultando estado…</div>';
+    let enabled = false; try { enabled = (await API.call('weeklyStatus')).enabled; } catch (e) { UI.toast(e.message, 'error'); }
+    el.innerHTML = `
+      <div class="card"><h2><i class="fa-regular fa-envelope"></i> Aviso semanal de pruebas</h2>
+        <p class="muted">Cada <b>jueves</b> los estudiantes reciben un correo con las pruebas que rinden la <b>semana siguiente</b> (lunes a domingo): fecha, hora, sala, docente y contenido. El correo es <code>RUT@andaliensur.cl</code> (editable por estudiante) y se copia al apoderado si tiene correo registrado.</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0">
+          <span class="pill ${enabled ? 'ok' : ''}">${enabled ? '● Envío semanal ACTIVO' : '○ Envío semanal desactivado'}</span>
+          <select id="ml-hour" style="width:auto">${opts([6, 7, 8, 9, 10, 12, 14, 16].map(h => [h, `Jueves a las ${String(h).padStart(2, '0')}:00`]), 8)}</select>
+          <button class="btn ${enabled ? '' : 'success'}" onclick="Admin.setWeekly(${!enabled},this)"><i class="fa-solid fa-${enabled ? 'pause' : 'play'}"></i> ${enabled ? 'Desactivar' : 'Activar envío semanal'}</button></div>
+        <div class="actions"><button class="btn" onclick="Admin.previewMail('weekly')"><i class="fa-regular fa-eye"></i> Ver correo semanal</button>
+          <button class="btn" onclick="Admin.previewMail('new')"><i class="fa-regular fa-eye"></i> Ver aviso de evaluación nueva</button>
+          <button class="btn" onclick="Admin.testMail(this)"><i class="fa-solid fa-paper-plane"></i> Enviarme una prueba</button>
+          <button class="btn danger" onclick="Admin.sendNow(this)"><i class="fa-solid fa-bolt"></i> Enviar ahora a todos</button></div>
+        <small style="display:block;margin-top:12px">La prueba llega solo a la cuenta de Google dueña del Apps Script. Para que el jueves se envíe a la hora correcta, en Apps Script → Configuración del proyecto elija la zona horaria <b>(GMT-03:00) Santiago</b>.</small></div>`;
+  },
+  setWeekly(on, btn) { UI.busy(btn, async () => { await API.call('setWeekly', { enabled: on, hour: $('#ml-hour').value }); UI.toast(on ? 'Envío semanal activado.' : 'Envío semanal desactivado.', 'success'); this.mail($('#ad-body')); }); },
+  previewMail(kind) {
+    UI.busy(null, async () => {
+      const r = await API.call('previewMail', { kind });
+      const d = UI.modal({ title: kind === 'new' ? 'Así llega el aviso de evaluación nueva' : 'Así llega el correo semanal', wide: true,
+        body: `<div class="notice ${r.sample ? 'warn' : ''}" style="margin-bottom:10px">${r.sample ? 'Esta vista usa datos de <b>ejemplo</b> porque no hay pruebas citadas para la próxima semana.' : `Vista con datos reales (primer estudiante de ${r.students} que recibirían el correo el jueves).`}</div><iframe id="ml-frame" style="width:100%;height:62vh;border:1px solid var(--line);border-radius:12px;background:#fff"></iframe>` });
+      $('#ml-frame', d).srcdoc = r.html;
+    });
+  },
+  testMail(btn) { UI.busy(btn, async () => { const r = await API.call('testMail'); UI.toast(`Correo de prueba enviado a ${r.to}.`, 'success', 6000); }); },
+  async sendNow(btn) {
+    if (!await UI.confirm('Enviar ahora', 'Se enviará el correo con las pruebas de la <b>próxima semana</b> a todos los estudiantes que tengan evaluaciones citadas en esas fechas.', 'Enviar a todos', true)) return;
+    UI.busy(btn, async () => { const r = await API.call('sendWeeklyNow'); UI.toast(`${r.sent} correo(s) enviado(s) de ${r.students} estudiante(s)${r.noMail ? ` · ${r.noMail} sin correo válido` : ''}.`, 'success', 7000); });
+  },
+
+  /* ---------- Traspaso desde Firebase / respaldo ---------- */
+  async readFirebase(log) {
+    const base = 'https://www.gstatic.com/firebasejs/8.10.1/';
+    for (const f of ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js']) await UI.loadScript(base + f);
+    const app = firebase.initializeApp({ apiKey: 'AIzaSyBVcDcIN6caANqRrfbVKao8dHVrNFrRZ9U', authDomain: 'pendientessegundociclo.firebaseapp.com', projectId: 'pendientessegundociclo', storageBucket: 'pendientessegundociclo.appspot.com', messagingSenderId: '633970608522', appId: '1:633970608522:web:560163652e78b7bd36a073' }, 'mig' + Date.now());
+    await app.auth().signInAnonymously(); const fs = app.firestore();
+    const prefixOf = p => p.split('/').slice(0, -1).join('/');
+    // Se busca en TODAS las rutas del proyecto (raíz y artifacts/…/public/data), no solo en la principal
+    const rows = async name => {
+      let docs;
+      try { docs = (await fs.collectionGroup(name).get()).docs; }
+      catch (e) { log(`  ${name}: la búsqueda global no está permitida; se usa la ruta principal.`); docs = (await fs.collection(name).get()).docs; }
+      const paths = {}; docs.forEach(x => { const p = x.ref.parent.path; paths[p] = (paths[p] || 0) + 1; });
+      log(`  ${name}: ${docs.length} → ${Object.entries(paths).map(([p, n]) => `${p} (${n})`).join(' | ') || 'vacío'}`);
+      return docs.map(x => ({ ...x.data(), id: x.id, _path: x.ref.parent.path }));
+    };
+    const [users, students, evals, settings, agenda] = [await rows('app_users'), await rows('students'), await rows('evaluations'), await rows('settings'), await rows('config')];
+
+    // Si los datos están en más de una ubicación, se elige cuál traspasar
+    const prefixes = [...new Set([...students, ...evals].map(r => prefixOf(r._path)))];
+    let chosen = null;
+    if (prefixes.length > 1) {
+      const count = p => `${students.filter(s => prefixOf(s._path) === p).length} estudiantes, ${evals.filter(s => prefixOf(s._path) === p).length} evaluaciones`;
+      const v = await UI.form({ title: 'Los datos están en más de una ubicación', ok: 'Usar esta', intro: 'Se encontraron datos en varios lugares de Firebase. Elija la ubicación con la información completa.',
+        fields: [{ name: 'p', label: 'Ubicación', type: 'select', full: true, value: prefixes.sort((a, b) => students.filter(s => prefixOf(s._path) === b).length - students.filter(s => prefixOf(s._path) === a).length)[0], options: prefixes.map(p => [p, `${p || '(raíz)'} — ${count(p)}`]) }] });
+      if (!v) throw new Error('Traspaso cancelado.');
+      chosen = v.p;
+    }
+    const pick = l => chosen === null ? l : l.filter(r => prefixOf(r._path) === chosen);
+    const clean = l => l.map(({ _path, ...r }) => r);
+    const byKey = new Map(); pick(students).forEach(s => { const k = normCourse(s.course) + '||' + String(s.name || '').trim().toUpperCase(); const o = byKey.get(k); if (!o || Object.keys(s).length > Object.keys(o).length) byKey.set(k, s); });
+    const general = (pick(settings).find(s => s.id === 'general')) || {}, cfg = (pick(settings).find(s => s.id === 'config')) || {}, ag = (pick(agenda).find(s => s.id === 'agendamiento')) || {};
+    const config = { ...general, ...cfg }; delete config.id; delete config._path; delete config.bannerUrl; delete config.logoUrl;
+    if (ag.days !== undefined) config.rule = { enabled: ag.enabled !== false, days: ag.days, cutoff: ag.cutoff || '12:00' };
+    const payload = { format: 'evaluaciones-export-1', exported: new Date().toISOString(), users: clean(pick(users)), students: clean([...byKey.values()]), evaluations: clean(pick(evals)), config, branding: { banner: general.bannerUrl || '', logo: general.logoUrl || '' } };
+    log(`Listo para traspasar: ${payload.users.length} usuarios, ${payload.students.length} estudiantes, ${payload.evaluations.length} evaluaciones.`);
+    return payload;
+  },
+
+  /** Envía todo al servidor. Con replace=true elimina primero lo que existía, para no mezclar versiones. */
+  async pushPayload(p, log, replace) {
+    const send = async (name, docs, rep) => {
+      for (let i = 0; i === 0 || i < docs.length; i += 400) {
+        await API.call('importAll', { replace: rep && i === 0, collections: { [name]: docs.slice(i, i + 400) } });
+        log(`  ${name}: ${Math.min(i + 400, docs.length)}/${docs.length}`);
+      }
+    };
+    await send('evaluations', p.evaluations || [], replace);
+    await send('students', p.students || [], replace);
+    await send('settings', [{ id: 'config', ...(p.config || {}) }, ...(p.branding && (p.branding.banner || p.branding.logo) ? [{ id: 'branding', ...p.branding }] : [])], replace);
+    const withPass = (p.users || []).filter(u => u.password);
+    let relogin = false;
+    if (withPass.length) { await send('users', withPass, replace && withPass.some(u => u.role === 'admin')); relogin = replace && withPass.some(u => u.role === 'admin'); }
+    return relogin;
+  },
+
+  async runImport(payload, log, d) {
+    if (!await UI.confirm('Reemplazar toda la información', `Se <b>eliminará todo</b> lo que hay hoy en este sistema (estudiantes, evaluaciones y configuración) y se cargará la información nueva: <b>${payload.students.length}</b> estudiantes, <b>${payload.evaluations.length}</b> evaluaciones, <b>${(payload.users || []).length}</b> usuarios. No se puede deshacer.`, 'Eliminar y cargar', true)) { log('Cancelado. No se modificó nada.'); return; }
+    const relogin = await this.pushPayload(payload, log, true);
+    if (relogin) { log('\n✔ Traspaso completo. Los usuarios fueron reemplazados: vuelva a iniciar sesión con su usuario de siempre.'); setTimeout(() => App.logout(), 3500); return; }
+    await DB.load(); const b = await API.call('branding'); Object.assign(Brand, { banner: b.banner || '', logo: b.logo || '', badges: b.badges || [] }); App.applyBrand();
+    log('\n✔ TRASPASO COMPLETO. Puede cerrar esta ventana.'); this.data($('#ad-body'));
+  },
+
+  logModal(title) {
+    const d = UI.modal({ title, body: '<pre id="mg-log" style="background:#0f1b38;color:#cfe1ff;padding:14px;border-radius:10px;min-height:160px;max-height:50vh;overflow:auto;white-space:pre-wrap;font-size:.82rem;margin:0">Iniciando…</pre>' });
+    return [d, t => { const p = $('#mg-log', d); if (p) { p.textContent += '\n' + t; p.scrollTop = 1e9; } }];
+  },
+  async migrate() {
+    const [d, log] = this.logModal('Traspaso desde Firebase');
+    try { log('Leyendo Firebase…'); await this.runImport(await this.readFirebase(log), log, d); } catch (e) { log('ERROR: ' + (e.message || e)); }
+  },
+  async downloadFirebase() {
+    const [d, log] = this.logModal('Descargar respaldo de Firebase');
+    try { log('Leyendo Firebase…'); const p = await this.readFirebase(log); UI.download(`firebase_respaldo_${D.today()}.json`, JSON.stringify(p)); log('\n✔ Archivo descargado. Guárdelo: puede subirlo con "Subir respaldo y reemplazar todo".'); }
+    catch (e) { log('ERROR: ' + (e.message || e)); }
   },
   importJson(inp) {
     const f = inp.files[0]; inp.value = ''; if (!f) return;
     UI.busy(null, async () => {
-      const j = JSON.parse(await f.text()), cols = {};
-      if (j.students) cols.students = j.students; if (j.evaluations) cols.evaluations = j.evaluations;
-      if (j.config) cols.settings = [{ id: 'config', ...j.config }];
-      for (const [c, docs] of Object.entries(cols)) for (let i = 0; i < docs.length; i += 400) await API.call('importAll', { collections: { [c]: docs.slice(i, i + 400) } });
-      await DB.load(); UI.toast('Respaldo importado.', 'success'); this.data($('#ad-body'));
+      const j = JSON.parse(await f.text());
+      if (!j.students && !j.evaluations) throw new Error('El archivo no parece un respaldo válido.');
+      const [d, log] = this.logModal('Subir respaldo');
+      try { await this.runImport({ users: j.users || [], students: j.students || [], evaluations: j.evaluations || [], config: j.config || {}, branding: j.branding || {} }, log, d); } catch (e) { log('ERROR: ' + (e.message || e)); }
     });
   },
   backup() { UI.download(`respaldo_evaluaciones_${D.today()}.json`, JSON.stringify({ exportado: new Date().toISOString(), students: DB.students, evaluations: DB.evaluations, users: DB.users, config: DB.config }, null, 1)); },
   async resetDemo() { if (await UI.confirm('Restablecer demo', 'Se borrarán los cambios hechos en este navegador y volverán los datos de ejemplo.', 'Restablecer', true)) { Mock.reset(); location.reload(); } }
 };
+
