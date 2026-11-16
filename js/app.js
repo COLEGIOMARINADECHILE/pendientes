@@ -33,7 +33,7 @@ const App = {
 
   applyBrand() {
     const set = (id, src) => { const e = $(id); if (!e) return; e.hidden = !src; if (src) e.src = src; };
-    set('#lg-banner', Brand.banner); $('#lg-card').classList.toggle('has-banner', !!Brand.banner); set('#lg-logo', Brand.logo); set('#sd-logo', Brand.logo); set('#bn-img', Brand.banner);
+    set('#lg-banner', Brand.banner); $('#lg-card').classList.toggle('has-banner', !!Brand.banner); set('#lg-logo', Brand.logo); set('#sd-logo', Brand.logo); set('#sd-banner', Brand.banner); $('#side').classList.toggle('has-banner', !!Brand.banner); $('#bn-img').hidden = true;
     $('#lg-badges').innerHTML = (Brand.badges || []).map(b => `<img src="${esc(b)}" alt="Insignia">`).join('');
     $('#lg-icon').hidden = !!Brand.logo; $('#sd-icon').hidden = !!Brand.logo;
     if (typeof Pwa !== 'undefined') Pwa.applyIcon();
@@ -204,6 +204,7 @@ const Pwa = {
   }
 };
 document.addEventListener('DOMContentLoaded', () => Pwa.init());
+
 
 
 

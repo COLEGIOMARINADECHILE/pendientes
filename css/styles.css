@@ -387,3 +387,17 @@ dialog.popup{width:min(520px,94vw);border-radius:20px}
 
 .login-brand img.creator{width:min(100%,290px);height:auto;border-radius:14px;padding:0;border:0;background:#fff;object-fit:contain;box-shadow:0 6px 18px -10px rgba(15,60,120,.35)}
 .login-card.has-banner .login-brand img#lg-logo{width:76px;height:76px}
+
+/* ===== Ajuste: banner grande en la portada, banner en el menú, crédito discreto ===== */
+.login-brand img.lg-banner{grid-column:auto;display:block;width:100%;height:auto;max-height:210px;object-fit:cover;border:0;border-radius:16px;padding:0;background:#fff;box-shadow:0 10px 24px -14px rgba(15,60,120,.6);margin:0 0 4px}
+.login-card.has-banner #lg-logo{display:none}
+.login-card.has-banner{max-height:calc((100dvh - 24px) / var(--ui-zoom,1))}
+.login-card.has-banner .login-form{max-height:calc((100dvh - 24px) / var(--ui-zoom,1))}
+.login-card.has-banner .names{max-height:clamp(150px,calc((100dvh - 540px) / var(--ui-zoom,1)),440px)}
+.login-brand{gap:10px;padding:22px 24px}
+.login-brand>*:first-child{margin-top:0}
+.login-brand img.creator{width:min(100%,190px);margin-top:auto;padding-top:0;box-shadow:none;border:1px solid var(--line);border-radius:12px}
+.sd-banner{width:100%;height:auto;max-height:110px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:14px;padding:4px}
+.side.has-banner .brand{display:none}
+@media(max-width:1250px){.sd-banner{display:none}.side.has-banner .brand{display:flex}}
+@media(max-width:900px){.login-brand img.lg-banner{max-height:120px}.login-brand img.creator{width:min(100%,170px)}}
