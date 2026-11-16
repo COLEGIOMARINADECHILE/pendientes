@@ -8,7 +8,7 @@ const Register = {
     el.innerHTML = `
       <div class="hero"><div class="hero-ic"><i class="fa-solid fa-file-circle-plus"></i></div><div><h1>${doc ? 'Ingresa tus evaluaciones pendientes' : 'Registrar evaluación pendiente'}</h1><p>Un solo formulario para uno o varios estudiantes. El sistema asigna el día oficial, avisa de cualquier situación especial y <b>envía el aviso por correo</b> al estudiante.</p></div></div>
       ${doc ? `<div class="notice" style="margin-bottom:16px"><i class="fa-solid fa-circle-info"></i> Solo verá los ciclos, cursos y asignaturas que tiene asignados; usted queda como docente responsable.</div>` : ''}
-      <form id="rg" class="stack">
+      <form id="rg" class="stack" novalidate>
         <div class="card stepcard"><div class="step"><span class="n" style="--c:var(--brand)">1</span><div><h2>Curso y evaluación</h2><small>¿Qué prueba y de qué curso?</small></div></div>
           <div class="fgrid" style="margin-top:14px">
             <div class="field"><label>Ciclo</label><select id="rg-cycle" required></select></div>
@@ -207,12 +207,30 @@ const Register = {
     });
   },
 
+  /** Revisa lo obligatorio y, si falta algo, lo enumera en una ventana y marca los campos en rojo. */
+  validate(f) {
+    $$('.invalid').forEach(x => x.classList.remove('invalid'));
+    const miss = [], need = (cond, id, label) => { if (!cond) miss.push({ id, label }); };
+    need($('#rg-cycle').value, 'rg-cycle', 'Ciclo');
+    need(f.course, 'rg-course', 'Curso');
+    need(f.subject, 'rg-subject', 'Asignatura');
+    need(f.teacher, 'rg-teacher', 'Docente');
+    need(f.instrumentType, 'rg-inst', 'Tipo de instrumento');
+    need(f.absenceDate, 'rg-abs', 'Fecha de la inasistencia');
+    need(f.content, 'rg-content', 'Contenido de la evaluación');
+    need(this.names.length, 'rg-list', 'Estudiantes: agregue al menos uno a la lista');
+    need(f.date || $('#rg-pending').checked, 'rg-date', 'Fecha de la 2ª citación (o marque «Dejar la fecha pendiente por ahora»)');
+    if (f.special && f.date) { need(f.place, 'rg-place', 'Lugar de aplicación (fecha fuera del calendario oficial)'); need(f.stime, 'rg-stime', 'Horario de aplicación (fecha fuera del calendario oficial)'); }
+    if (!miss.length) return true;
+    miss.forEach(m => { const el = document.getElementById(m.id); if (el) { el.classList.add('invalid'); el.addEventListener('input', () => el.classList.remove('invalid'), { once: true }); el.addEventListener('change', () => el.classList.remove('invalid'), { once: true }); } });
+    UI.notice({ type: 'warn', title: `Faltan ${miss.length} dato(s) para guardar`, html: `<ul>${miss.map(m => `<li>${esc(m.label)}</li>`).join('')}</ul>` });
+    const first = document.getElementById(miss[0].id); if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return false;
+  },
+
   async submit() {
     const f = this.read();
-    if (!f.course || !f.subject || !f.teacher || !f.instrumentType || !f.absenceDate || !f.content) throw new Error('Complete todos los campos obligatorios.');
-    if (!this.names.length) throw new Error('Agregue al menos un estudiante a la lista.');
-    if (f.special && !f.date && !$('#rg-pending').checked) throw new Error('Indique la fecha de aplicación.');
-    if (f.special && f.date && (!f.place || !f.stime)) throw new Error('Para una fecha fuera del calendario oficial indique lugar y horario.');
+    if (!this.validate(f)) return;
     if (f.special && f.stime) f.time = f.stime;
     const bl = f.date && f.special ? blockedInfo(f.date, f.course) : null;
     if (bl) throw new Error(`Ese día está bloqueado: ${bl.reason}.`);
@@ -250,12 +268,11 @@ const Register = {
       } catch (e) { mailNote = 'Las evaluaciones se guardaron, pero no se pudo enviar el correo: ' + e.message; }
     }
 
-    UI.modal({ title: '<i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> Evaluación guardada', body: `
-      <p style="margin-top:0">Se registraron <b>${recs.length}</b> evaluación(es) de <b>${esc(f.subject)}</b> en <b>${esc(f.course)}</b>.</p>
-      <ul class="list">${recs.map(r => `<li><span>${esc(fmtName(r.name))}</span><span class="pill ${r.kind === 'closed' ? 'vio' : r.date ? 'ok' : 'sky'}">${r.kind === 'closed' ? 'Cerrada por salud' : r.date ? D.long(r.date) : 'Sin fecha (UTP reagenda)'}</span></li>`).join('')}</ul>${mailNote ? `<div class="notice" style="margin-top:12px"><i class="fa-regular fa-envelope"></i> ${esc(mailNote)}</div>` : ''}`,
-      footer: '<button class="btn primary" onclick="this.closest(\'dialog\').close()">Entendido</button>' });
-    this.mount($('#view'));
+    UI.notice({ type: 'success', title: 'Evaluación guardada', html: `
+      <p style="margin:0 0 8px">Se registraron <b>${recs.length}</b> evaluación(es) de <b>${esc(f.subject)}</b> en <b>${esc(f.course)}</b>.</p>
+      <ul class="list">${recs.map(r => `<li><span>${esc(fmtName(r.name))}</span><span class="pill ${r.kind === 'closed' ? 'vio' : r.date ? 'ok' : 'sky'}">${r.kind === 'closed' ? 'Cerrada por salud' : r.date ? D.long(r.date) : 'Sin fecha (UTP reagenda)'}</span></li>`).join('')}</ul>${mailNote ? `<div style="margin-top:10px"><i class="fa-regular fa-envelope"></i> ${esc(mailNote)}</div>` : ''}` });    this.mount($('#view'));
   }
 };
+
 
 

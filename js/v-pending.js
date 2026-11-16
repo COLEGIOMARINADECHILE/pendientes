@@ -202,7 +202,7 @@ const Pending = {
         await DB.flush();
         const r = await API.call('notifyExcluded', { evalIds: evs.map(e => e.id) });
         if (r.demo) UI.toast('Modo demo: no se envían correos.', 'info');
-        else UI.modal({ title: 'Aviso a los docentes', body: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b> · ${x.count} evaluación(es)</span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` });
+        else UI.notice({ type: 'success', title: 'Aviso a los docentes', html: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b> · ${x.count} evaluación(es)</span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` });
       }
       if (Ficha.dlg && Ficha.dlg.open) Ficha.render();
     });
@@ -274,6 +274,7 @@ const Pending = {
     else PDF.pending(evs, { text, scope }, v.mode);
   }
 };
+
 
 
 

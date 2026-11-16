@@ -1,4 +1,4 @@
-/* ===== Utilidades de interfaz ===== */
+﻿/* ===== Utilidades de interfaz ===== */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -16,7 +16,34 @@ const opts = (list, sel, blank) => (blank ? `<option value="">${esc(blank)}</opt
 }).join('');
 
 const UI = {
+  /** Ventana emergente de aviso con cuenta regresiva (15 s) y botón para cerrar.
+   *  Si ya hay una abierta, agrega el nuevo mensaje y reinicia la cuenta. */
+  notice({ type = 'info', title, html = '', seconds = 15 }) {
+    const ic = { success: 'fa-circle-check', error: 'fa-circle-xmark', warn: 'fa-triangle-exclamation', info: 'fa-circle-info' }[type] || 'fa-circle-info';
+    const col = { success: 'var(--ok)', error: 'var(--bad)', warn: 'var(--warn)', info: 'var(--brand)' }[type] || 'var(--brand)';
+    const item = `<div class="nt-item" style="--c:${col}">${title ? `<b class="nt-t"><i class="fa-solid ${ic}"></i> ${title}</b>` : ''}<div>${html}</div></div>`;
+    let d = document.querySelector('dialog.popup');
+    if (d) { d.querySelector('.nt-body').insertAdjacentHTML('beforeend', item); d._left = seconds; d._total = seconds; return d; }
+    d = document.createElement('dialog'); d.className = 'modal popup';
+    d.innerHTML = `<div class="nt-head" style="background:${col}"><i class="fa-solid ${ic}"></i><span>${type === 'success' ? 'Listo' : type === 'error' ? 'Ocurrió un problema' : type === 'warn' ? 'Falta información' : 'Información'}</span>
+      <button class="nt-x" type="button" title="Cerrar"><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="nt-body">${item}</div>
+      <div class="nt-foot"><div class="nt-bar"><i></i></div><span class="nt-count"></span><button class="btn primary sm" type="button">Cerrar</button></div>`;
+    document.body.appendChild(d);
+    d._left = seconds; d._total = seconds;
+    const paint = () => { d.querySelector('.nt-count').textContent = `Se cierra en ${d._left} s`; d.querySelector('.nt-bar i').style.width = (d._left / d._total * 100) + '%'; };
+    paint();
+    const tm = setInterval(() => { d._left--; if (d._left <= 0) d.close(); else paint(); }, 1000);
+    d.querySelector('.nt-x').onclick = d.querySelector('.nt-foot .btn').onclick = () => d.close();
+    d.addEventListener('click', e => { if (e.target === d) d.close(); });
+    d.addEventListener('close', () => { clearInterval(tm); d.remove(); });
+    d.showModal();
+    return d;
+  },
+
   toast(msg, type = 'info', ms = 4200) {
+    // Guardados, envíos y errores se muestran como ventana emergente; los cambios rápidos en una fila (ms cortos) siguen siendo avisos breves.
+    if ((type === 'success' || type === 'error') && ms >= 3000) return UI.notice({ type, html: esc(msg) });
     const box = $('#toasts'), t = document.createElement('div');
     t.className = 'toast ' + type;
     t.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : type === 'error' ? 'fa-circle-xmark' : 'fa-circle-info'}"></i><span>${esc(msg)}</span>`;
@@ -114,3 +141,5 @@ const UI = {
     });
   }
 };
+
+

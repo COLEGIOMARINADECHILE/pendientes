@@ -66,7 +66,7 @@ const Delivery = {
     const okTeachers = new Set(r.results.filter(x => x.sent).map(x => String(x.teacher).trim().toUpperCase()));
     const marks = (gs || []).filter(g => okTeachers.has(String(g.teacher).trim().toUpperCase())).flatMap(g => g.done.map(e => Act.op(e.id, { teacherNotifiedAt: new Date().toISOString() })));
     if (marks.length) DB.write(marks).catch(() => {});
-    UI.modal({ title: 'Resultado del envío', body: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b> · ${x.count} prueba(s)${x.pending ? ` · ${x.pending} pendiente(s)` : ''}</span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` });
+    UI.notice({ type: 'success', title: 'Resultado del envío', html: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b> · ${x.count} prueba(s)${x.pending ? ` · ${x.pending} pendiente(s)` : ''}</span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` });
   },
 
   /** Historial completo por docente (rendidas, pendientes, otras) con envío por correo. */
@@ -81,7 +81,7 @@ const Delivery = {
         ${rows.map((r, i) => `<tr><td><b>${esc(titleCase(r.teacher))}</b></td><td><span class="pill ok">${r.done}</span></td><td><span class="pill warn">${r.pend}</span></td><td>${r.other}</td>
           <td>${r.email ? esc(r.email) : '<span class="pill bad">Sin correo</span>'}</td><td style="white-space:nowrap"><button class="btn sm" data-prevh="${i}"><i class="fa-regular fa-eye"></i> Ver</button> ${r.email ? `<button class="btn sm" data-one="${i}"><i class="fa-solid fa-envelope"></i> Enviar</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`,
       footer: `<button class="btn" data-no>Cerrar</button><button class="btn primary" data-all ${con.length ? '' : 'disabled'}><i class="fa-solid fa-paper-plane"></i> Enviar a ${con.length} docente(s)</button>` });
-    const run = async (names, btn) => UI.busy(btn, async () => { await DB.flush(); const r = await API.call('notifyTeachers', { kind: 'history', teachers: names }); if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info'); UI.modal({ title: 'Resultado del envío', body: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b></span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` }); });
+    const run = async (names, btn) => UI.busy(btn, async () => { await DB.flush(); const r = await API.call('notifyTeachers', { kind: 'history', teachers: names }); if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info'); UI.notice({ type: 'success', title: 'Resultado del envío', html: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b></span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` }); });
     $('[data-no]', d).onclick = () => d.close();
     $('[data-all]', d).onclick = e => run(con.map(r => r.teacher), e.currentTarget);
     $$('[data-one]', d).forEach(b => b.onclick = e => run([rows[+b.dataset.one].teacher], e.currentTarget));
@@ -103,7 +103,7 @@ const Delivery = {
     $('[data-send]', d).onclick = e => UI.busy(e.currentTarget, async () => {
       await DB.flush(); const r = await API.call('notifyTeachers', { kind: 'pending', teachers: con.map(g => g.teacher) });
       d.close(); if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info');
-      UI.modal({ title: 'Resultado del envío', body: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b> · ${x.pending} pendiente(s)</span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` });
+      UI.notice({ type: 'success', title: 'Resultado del envío', html: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b> · ${x.pending} pendiente(s)</span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` });
     });
   },
 
@@ -157,6 +157,7 @@ PDF.delivery = function (groups) {
   });
   doc.save(`Ficha_entrega_docentes_${D.today()}.pdf`);
 };
+
 
 
 
