@@ -47,21 +47,32 @@ const PDF = {
     PDF.out(doc, `Pendientes_${D.today()}.pdf`, mode);
   },
 
-  /** Nómina de firmas: una fila por evaluación, con espacio de firma. */
+  /** Nómina de firmas. Con split=true cada curso va en su propia hoja y los estudiantes en orden alfabético. */
   attendance(evals, meta, mode) {
-    const doc = PDF.doc('landscape'); PDF.header(doc, `NÓMINA DE RENDICIÓN Y FIRMAS${meta.course ? ' - ' + meta.course : ''}`, meta.scope);
-    doc.text(`${meta.text}  |  Total: ${evals.length}`, PDF.M, 50);
-    const sorted = [...evals].sort((a, b) => (a.citationDate || '').localeCompare(b.citationDate || '') || (a.room || 'ZZ').localeCompare(b.room || 'ZZ', 'es', { numeric: true }) || a.course.localeCompare(b.course, 'es', { numeric: true }) || a.studentName.localeCompare(b.studentName, 'es'));
-    doc.autoTable({
-      head: [['N°', 'Sala', 'Curso', 'Estudiante', 'Asignatura', 'Contenido', 'Docente', 'Fecha', 'Firma']],
-      body: sorted.map((e, i) => [i + 1, e.room || 'Por asignar', e.course, fmtName(e.studentName), e.subject, e.content || '-', titleCase(e.teacher), PDF.citation(e), '']),
-      startY: 54, margin: { left: PDF.M, right: PDF.M }, theme: 'grid', headStyles: { fillColor: [52, 97, 232], textColor: 255 },
-      styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 2, valign: 'middle', minCellHeight: 13 },
-      columnStyles: { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 18, fontStyle: 'bold' }, 2: { cellWidth: 16 }, 7: { cellWidth: 24 }, 8: { cellWidth: 34 } }
-    });
-    PDF.out(doc, `Nomina_Firmas_${D.today()}.pdf`, mode);
+    const doc = PDF.doc('landscape'), W = doc.internal.pageSize.width;
+    const alpha = (a, b) => a.studentName.localeCompare(b.studentName, 'es') || (a.subject || '').localeCompare(b.subject || '', 'es') || (a.citationDate || '').localeCompare(b.citationDate || '');
+    const head = [['N°', 'Estudiante', 'Asignatura', 'Contenido', 'Docente', 'Fecha', 'Sala', 'Firma']];
+    const cols = { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 50, fontStyle: 'bold' }, 6: { cellWidth: 20, fontStyle: 'bold' }, 5: { cellWidth: 26 }, 7: { cellWidth: 40 } };
+    const style = { font: 'helvetica', fontSize: 8, cellPadding: 2, valign: 'middle', minCellHeight: 12 };
+    const rows = l => l.sort(alpha).map((e, i) => [i + 1, fmtName(e.studentName), e.subject, e.content || '-', titleCase(e.teacher), PDF.citation(e), e.room || 'Por asignar', '']);
+    if (meta.split !== false) {
+      const by = {}; evals.forEach(e => (by[e.course] = by[e.course] || []).push(e));
+      Object.keys(by).sort((a, b) => COURSES.indexOf(a) - COURSES.indexOf(b)).forEach((c, i) => {
+        if (i) doc.addPage();
+        PDF.header(doc, `LISTA DE ASISTENCIA Y FIRMAS - CURSO ${c}`, c);
+        doc.text(`${meta.text}  |  ${new Set(by[c].map(e => e.studentName)).size} estudiante(s) · ${by[c].length} evaluación(es)  |  Orden alfabético`, PDF.M, 50);
+        doc.autoTable({ head, body: rows(by[c]), startY: 54, margin: { left: PDF.M, right: PDF.M }, theme: 'grid', headStyles: { fillColor: [15, 105, 196], textColor: 255 }, styles: style, columnStyles: cols });
+        const y = Math.min(doc.lastAutoTable.finalY + 14, doc.internal.pageSize.height - 16);
+        doc.text('________________________________', W - PDF.M - 70, y); doc.text('Firma docente / asistente a cargo', W - PDF.M - 70, y + 5);
+      });
+    } else {
+      PDF.header(doc, `NÓMINA DE RENDICIÓN Y FIRMAS${meta.course ? ' - ' + meta.course : ''}`, meta.scope);
+      doc.text(`${meta.text}  |  Total: ${evals.length}`, PDF.M, 50);
+      const body = [...evals].sort((a, b) => COURSES.indexOf(a.course) - COURSES.indexOf(b.course) || alpha(a, b)).map((e, i) => [i + 1, `${e.course} · ${fmtName(e.studentName)}`, e.subject, e.content || '-', titleCase(e.teacher), PDF.citation(e), e.room || 'Por asignar', '']);
+      doc.autoTable({ head, body, startY: 54, margin: { left: PDF.M, right: PDF.M }, theme: 'grid', headStyles: { fillColor: [15, 105, 196], textColor: 255 }, styles: style, columnStyles: cols });
+    }
+    PDF.out(doc, `Lista_Firmas_${D.today()}.pdf`, mode);
   },
-
   /** Nómina por sala: una página por sala. */
   rooms(dist, cycle, date, order, mode) {
     const doc = PDF.doc('landscape'), salas = {};
@@ -171,4 +182,5 @@ const PDF = {
     doc.save(`Cierre_${ev.studentName.replace(/ /g, '_')}.pdf`);
   }
 };
+
 

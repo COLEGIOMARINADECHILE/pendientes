@@ -233,7 +233,8 @@ const Pending = {
         { name: 'course', label: 'Curso', type: 'select', value: this.f.course, options: [['', 'Todos'], ...COURSES.map(c => [c, c])] },
         { name: 'from', label: 'Citadas desde', type: 'date', value: D.today() },
         { name: 'to', label: 'Hasta', type: 'date', value: D.today() },
-        { name: 'mode', label: 'Salida', type: 'select', value: 'download', options: [['download', 'Descargar PDF'], ['print', 'Abrir para imprimir']] }
+        { name: 'mode', label: 'Salida', type: 'select', value: 'download', options: [['download', 'Descargar PDF'], ['print', 'Abrir para imprimir']] },
+        { name: 'split', label: 'Lista de firmas: separar cada curso en su propia hoja (estudiantes en orden alfabético)', type: 'check', value: true }
       ]
     });
     if (!v) return;
@@ -245,10 +246,11 @@ const Pending = {
     const text = v.doc === 'lista' ? `${v.course || v.cycle || 'Todos los ciclos'}` : (v.from === v.to ? `Citadas el ${D.long(v.from)}` : `Citadas entre ${D.fmt(v.from)} y ${D.fmt(v.to)}`);
     await ensureRooms(evs);
     if (v.doc === 'cartas') { const n = PDF.letters(evs.filter(e => e.includeInCitation !== false), v.mode); UI.toast(`${n} carta(s) generada(s).`, 'success'); }
-    else if (v.doc === 'firmas') PDF.attendance(evs, { text, scope, course: v.course }, v.mode);
+    else if (v.doc === 'firmas') PDF.attendance(evs, { text, scope, course: v.course, split: v.split }, v.mode);
     else PDF.pending(evs, { text, scope }, v.mode);
   }
 };
+
 
 
 

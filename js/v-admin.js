@@ -71,7 +71,7 @@ const Admin = {
   users(el) {
     el.innerHTML = `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h2><i class="fa-solid fa-user-gear"></i> Usuarios y accesos</h2><button class="btn primary" onclick="Admin.userForm()"><i class="fa-solid fa-user-plus"></i> Nuevo usuario</button></div>
       <div class="table-wrap" style="margin-top:14px"><table class="tbl"><thead><tr><th>Nombre</th><th>Correo</th><th>Perfil</th><th>Jefatura</th><th>Asignaciones</th><th></th></tr></thead><tbody>
-      ${[...DB.users].sort((a, b) => a.name.localeCompare(b.name, 'es')).map(u => `<tr><td><b>${esc(titleCase(u.name))}</b></td><td>${u.email ? esc(u.email) : '<span class="pill warn">Sin correo</span>'}</td><td><span class="pill brand">${esc(ROLE_LABELS[u.role] || u.role)}</span></td><td>${esc(u.headTeacherOf || '—')}</td><td>${(u.assignments || []).length ? `${(u.assignments || []).length} (${[...new Set(u.assignments.map(a => a.course))].slice(0, 4).join(', ')}${new Set(u.assignments.map(a => a.course)).size > 4 ? '…' : ''})` : '—'}</td>
+      ${[...DB.users].sort((a, b) => a.name.localeCompare(b.name, 'es')).map(u => `<tr><td><b>${esc(titleCase(u.name))}</b></td><td><button class="mail-link" onclick="Admin.userForm('${u.id}')">${u.email ? esc(u.email) : '<span class="pill warn">+ Agregar correo</span>'}</button></td><td><span class="pill brand">${esc(ROLE_LABELS[u.role] || u.role)}</span></td><td>${esc(u.headTeacherOf || '—')}</td><td>${(u.assignments || []).length ? `${(u.assignments || []).length} (${[...new Set(u.assignments.map(a => a.course))].slice(0, 4).join(', ')}${new Set(u.assignments.map(a => a.course)).size > 4 ? '…' : ''})` : '—'}</td>
         <td><div class="rowacts"><button class="btn sm" onclick="Admin.userForm('${u.id}')"><i class="fa-solid fa-pen"></i> Editar</button><button class="btn sm danger" onclick="Admin.delUser('${u.id}')"><i class="fa-solid fa-trash"></i></button></div></td></tr>`).join('')}
       </tbody></table></div></div>
       <div class="card"><h2><i class="fa-solid fa-right-left"></i> Traspasar evaluaciones entre docentes</h2><p class="muted">Úselo cuando un docente reemplaza a otro. Se traspasan todas sus evaluaciones (rendidas, pendientes y cerradas).</p>
@@ -311,5 +311,6 @@ const Admin = {
   backup() { UI.download(`respaldo_evaluaciones_${D.today()}.json`, JSON.stringify({ exportado: new Date().toISOString(), students: DB.students, evaluations: DB.evaluations, users: DB.users, config: DB.config }, null, 1)); },
   async resetDemo() { if (await UI.confirm('Restablecer demo', 'Se borrarán los cambios hechos en este navegador y volverán los datos de ejemplo.', 'Restablecer', true)) { Mock.reset(); location.reload(); } }
 };
+
 
 

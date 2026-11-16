@@ -75,6 +75,7 @@ async function initLogin() {
     $('#lg-name').innerHTML = role ? opts(l.map(u => [u.id, titleCase(u.name)]), l.length === 1 ? l[0].id : '', l.length ? 'Seleccione su nombre…' : 'No hay usuarios en este perfil') : '<option value="">Seleccione un perfil primero</option>';
   };
   $('#lg-role').onchange = fill; $('#lg-level').onchange = fill;
+  $$('#lg-roles button').forEach(b => b.onclick = () => { $$('#lg-roles button').forEach(x => x.classList.toggle('on', x === b)); $('#lg-role').value = b.dataset.r; $('#lg-role').dispatchEvent(new Event('change')); setTimeout(() => ($('#lg-name').value ? $('#lg-pass') : $('#lg-name')).focus(), 50); });
 
   $('#f-staff').onsubmit = e => {
     e.preventDefault();
@@ -138,5 +139,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   initLogin();
 });
+
 
 
