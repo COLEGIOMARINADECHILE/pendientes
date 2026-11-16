@@ -35,7 +35,7 @@ const Delivery = {
       body: `<div class="notice ok" style="margin-bottom:14px"><b>${total} prueba(s)</b> de <b>${gs.length} docente(s)</b> quedaron marcadas como rendidas y listas para devolver. ¿Desea avisarles por correo?</div>
         <div class="table-wrap" style="max-height:52vh"><table class="tbl"><thead><tr><th>Docente</th><th>Pruebas que se le devuelven</th><th>Aún pendientes de rendir</th><th>No considerar</th><th>Recibirá el correo en</th></tr></thead><tbody>
         ${gs.map(g => `<tr><td><b>${esc(titleCase(g.teacher))}</b><br><button class="btn sm" style="margin-top:6px" data-prev="${gs.indexOf(g)}"><i class="fa-regular fa-eye"></i> Ver correo</button></td>
-          <td><span class="pill ok">${g.done.length}</span><details><summary class="muted" style="cursor:pointer;font-size:.78rem">Ver de quiénes</summary>${this.listHtml(g.done)}</details></td>
+          <td><span class="pill ok">${g.done.length} prueba(s)</span>${this.listHtml(g.done)}</td>
           <td>${g.pend.length ? `<span class="pill warn">${g.pend.length}</span><details><summary class="muted" style="cursor:pointer;font-size:.78rem">Ver lista</summary>${this.listHtml(g.pend)}</details>` : '<span class="pill ok">Ninguna</span>'}</td>
           <td>${g.excl.length ? `<span class="pill vio">${g.excl.length}</span><details><summary class="muted" style="cursor:pointer;font-size:.78rem">Ver motivos</summary><ul style="margin:6px 0 0;padding-left:18px;font-size:.8rem">${g.excl.map(e => `<li>${esc(fmtName(e.studentName))} <small>(${esc(e.subject)}): ${esc(e.excludedReason || '')}</small></li>`).join('')}</ul></details>` : '<span class="muted">—</span>'}</td>
           <td>${g.email ? `<i class="fa-regular fa-envelope"></i> ${esc(g.email)}` : '<span class="pill bad">Sin correo registrado</span><br><small>Agréguelo en Administración → Usuarios</small>'}</td></tr>`).join('')}
@@ -64,9 +64,9 @@ const Delivery = {
     const r = await API.call('notifyTeachers', { evalIds: ids });
     if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info');
     const okTeachers = new Set(r.results.filter(x => x.sent).map(x => String(x.teacher).trim().toUpperCase()));
-    const marks = (gs || []).filter(g => okTeachers.has(String(g.teacher).trim().toUpperCase())).flatMap(g => g.done.map(e => Act.op(e.id, { teacherNotifiedAt: new Date().toISOString() })));
+    const marks = (gs || []).filter(g => okTeachers.has(String(g.teacher).trim().toUpperCase())).flatMap(g => g.done.map(e => Act.op(e.id, { teacherNotifiedAt: new Date().toISOString(), returnedToTeacher: true, returnDate: e.returnDate || D.today() })));
     if (marks.length) DB.write(marks).catch(() => {});
-    UI.notice({ type: 'success', title: 'Resultado del envío', html: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b> · ${x.count} prueba(s)${x.pending ? ` · ${x.pending} pendiente(s)` : ''}</span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` });
+    UI.notice({ type: 'success', title: 'Resultado del envío', html: `<ul class="list">${r.results.map(x => { const g = (gs || []).find(h => normP(h.teacher) === normP(x.teacher)); return `<li><span><b>${esc(titleCase(x.teacher))}</b> · ${x.count} prueba(s) para retirar${g ? `<br><small class="muted">${g.done.map(e => esc(fmtName(e.studentName)) + ' (' + esc(e.course) + ')').join(' · ')}</small>` : ''}${x.pending ? ` · ${x.pending} pendiente(s)` : ''}</span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`; }).join('')}</ul>` });
   },
 
   /** Historial completo por docente (rendidas, pendientes, otras) con envío por correo. */
@@ -157,6 +157,8 @@ PDF.delivery = function (groups) {
   });
   doc.save(`Ficha_entrega_docentes_${D.today()}.pdf`);
 };
+
+
 
 
 

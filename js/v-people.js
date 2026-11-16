@@ -221,7 +221,7 @@ const History = {
   mount(el) {
     el.innerHTML = `
       <div class="page-head"><div><h1>Historial de evaluaciones</h1><p>Evaluaciones ya cerradas, separadas por resultado.</p></div>
-        <div class="actions"><button class="btn" onclick="History.pdf()"><i class="fa-solid fa-file-pdf"></i> Descargar PDF</button></div></div>
+        <div class="actions">${Auth.isAdmin() ? '<button class="btn primary" id="h-pickup" onclick="History.notifyPickup()" title="Un clic: avisa a cada docente que puede retirar sus pruebas rendidas"><i class="fa-solid fa-box-open"></i> Avisar a docentes que retiren sus pruebas</button>' : ''}<button class="btn" onclick="History.pdf()"><i class="fa-solid fa-file-pdf"></i> Descargar PDF</button></div></div>
       <div class="card toolbar">
         <div class="field"><label>Resultado</label><select id="hf-status">${opts([['', 'Todas las evaluaciones'], [ST.DONE, 'Rendidas'], [ST.PEND, 'Pendientes (para avisar al docente)'], [ST.LIC, 'Cerradas por salud (reposo ≥ 15 días)'], [ST.EXCL, 'No consideradas (con motivo)'], [ST.PLAN, 'Plan de Evaluación'], [ST.FAIL, 'Nota mínima (1.0)']], this.f.status)}</select></div>
         <div class="field"><label>Ciclo</label><select id="hf-cycle">${opts(CYCLES.map(c => c.name), this.f.cycle, 'Todos')}</select></div>
@@ -254,6 +254,7 @@ const History = {
     const sc = {}; this.list(true).forEach(e => { sc[e.status] = (sc[e.status] || 0) + 1; });
     const SL = [[ST.DONE, 'Rendidas', 'ok'], [ST.PEND, 'Pendientes', 'warn'], [ST.LIC, 'Cerradas por salud', 'vio'], [ST.EXCL, 'No consideradas', 'vio'], [ST.PLAN, 'Plan de evaluación', 'vio'], [ST.FAIL, 'Nota mínima', 'bad']];
     const hs = $('#h-sum'); if (hs) hs.innerHTML = `<button class="pill ${this.f.status ? '' : 'brand'}" style="border:0;cursor:pointer;font-size:.8rem;padding:5px 12px" onclick="History.setStatus('')">Todas: ${Object.values(sc).reduce((a, b) => a + b, 0)}</button>` + SL.filter(s => sc[s[0]]).map(s => `<button class="pill ${s[2]}" style="border:0;cursor:pointer;font-size:.8rem;padding:5px 12px;${this.f.status === s[0] ? 'outline:2px solid var(--brand)' : ''}" onclick="History.setStatus('${s[0]}')">${s[1]}: ${sc[s[0]]}</button>`).join('');
+    const pk = $('#h-pickup'); if (pk) { const n = this.pickupIds().length; pk.innerHTML = `<i class="fa-solid fa-box-open"></i> Avisar a docentes que retiren sus pruebas (${n})`; pk.disabled = !n; }
     const ha = $('#h-all'); if (ha) ha.onchange = e => { l.forEach(x => e.target.checked ? this.sel.add(x.id) : this.sel.delete(x.id)); this.refresh(); };
     $('#h-body').innerHTML = l.slice(0, 500).map(e => `<tr class="${e.status === ST.DONE ? 'st-ok' : 'st-vio'}">
       <td>${Auth.isAdmin() ? `<input type="checkbox" ${this.sel.has(e.id) ? 'checked' : ''} onchange="History.toggle('${e.id}',this.checked)">` : ''}</td><td><b>${esc(fmtName(e.studentName))}</b><br><small>${esc(e.course)}</small></td>
@@ -263,6 +264,13 @@ const History = {
       <td><div class="rowacts"><button class="btn sm" onclick="Ficha.open('','${e.id}')"><i class="fa-solid fa-folder-open"></i></button>${Auth.isAdmin() && e.status !== ST.DONE && e.status !== ST.PEND ? `<button class="btn sm" onclick="History.reopen('${e.id}')"><i class="fa-solid fa-rotate-left"></i> ${e.status === ST.EXCL ? 'Volver a considerar' : 'Devolver al proceso'}</button>` : ''}</div></td></tr>`).join('')
       || `<tr><td colspan="7"><div class="empty"><i class="fa-regular fa-folder-open"></i>No hay evaluaciones en esta categoría.</div></td></tr>`;
     this.bulk();
+  },
+  /** Pruebas rendidas cuyo docente aún no ha sido avisado (respeta ciclo, curso y docente elegidos). */
+  pickupIds() { return this.list(true).filter(e => e.status === ST.DONE && !e.teacherNotifiedAt).map(e => e.id); },
+  notifyPickup() {
+    const ids = this.pickupIds();
+    if (!ids.length) return UI.toast('No hay pruebas rendidas pendientes de avisar con los filtros actuales.', 'info', 5000);
+    Delivery.offer(ids);
   },
   setStatus(s) { this.f.status = s; this.sel.clear(); this.mount($('#view')); },
   sel: new Set(),
@@ -410,6 +418,7 @@ const Rooms = {
     PDF.rooms(this.dist, $('#rm-cycle').value, $('#rm-date').value, $('#rm-order').value, 'print');
   }
 };
+
 
 
 

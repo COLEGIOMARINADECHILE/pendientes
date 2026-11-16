@@ -372,3 +372,18 @@ dialog.popup{width:min(520px,94vw);border-radius:20px}
 .nt-count{flex:1;color:var(--muted);font-size:.82rem}
 .invalid{border-color:var(--bad)!important;box-shadow:0 0 0 3px var(--bad-l)!important}
 
+
+/* ===== Banner en portada (más pequeño dentro del sistema) y crédito del creador ===== */
+.lg-banner{grid-column:1/-1;width:100%;max-height:78px;object-fit:contain;background:#fff;border-bottom:1px solid var(--line);padding:6px 16px}
+.login-card{grid-template-rows:auto 1fr}
+.login-card.has-banner .login-form{max-height:calc((100dvh - 24px - 78px) / var(--ui-zoom,1))}
+.login-card.has-banner{max-height:calc((100dvh - 24px) / var(--ui-zoom,1))}
+.login-card.has-banner .names{max-height:clamp(140px,calc((100dvh - 640px) / var(--ui-zoom,1)),440px)}
+.creator{display:block;width:min(100%,290px);height:auto;margin-top:auto;padding-top:10px;align-self:flex-start}
+.login-brand{justify-content:flex-start}
+.login-brand>*:first-child{margin-top:auto}
+.banner{max-height:64px;padding:4px 10px;margin-bottom:14px}
+@media(max-width:900px){.banner{max-height:44px}.lg-banner{max-height:56px}.creator{width:min(100%,220px)}}
+
+.login-brand img.creator{width:min(100%,290px);height:auto;border-radius:14px;padding:0;border:0;background:#fff;object-fit:contain;box-shadow:0 6px 18px -10px rgba(15,60,120,.35)}
+.login-card.has-banner .login-brand img#lg-logo{width:76px;height:76px}
