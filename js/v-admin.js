@@ -99,6 +99,7 @@ const Admin = {
         <div class="stack">
           <div class="field"><label>Nombre completo</label><input id="uf-name" value="${esc(u.name || '')}"></div>
           <div class="field"><label>Correo institucional</label><div class="mailgrp"><input id="uf-mail" value="${esc(staffLocal(u.email))}" placeholder="nombre.apellido" autocomplete="off"><span>@andaliensur.cl</span></div><small>Escriba solo lo anterior a la @; el dominio se agrega solo. Se usa para avisarle de las pruebas que se le devuelven.</small></div>
+          <div class="field"><label>Género (para el saludo «Estimado/Estimada»)</label><select id="uf-gender">${opts([['', `Automático según el nombre (${staffGender(u) === 'F' ? 'Femenino' : 'Masculino'})`], ['F', 'Femenino'], ['M', 'Masculino']], u.gender || '')}</select></div>
           <div class="field"><label>Perfil</label><select id="uf-role">${opts(Object.entries(ROLE_LABELS), u.role)}</select></div>
           <div class="field"><label>Contraseña</label><input id="uf-pass" type="text" placeholder="${id ? 'Dejar vacío para no cambiarla' : 'Contraseña inicial'}"></div>
           <div class="field" id="uf-lvl"><label>Nivel principal</label><select id="uf-level">${opts([['', 'Automático (según cursos)'], ['Básica', 'Enseñanza Básica'], ['Media', 'Enseñanza Media']], u.mainLevel || '')}</select></div>
@@ -129,7 +130,7 @@ const Admin = {
     $('[data-ok]', d).onclick = e => UI.busy(e.currentTarget, async () => {
       const role = $('#uf-role', d).value, name = $('#uf-name', d).value.trim();
       if (!name) throw new Error('Escriba el nombre.');
-      const r = await API.call('saveUser', { user: { id: id || null, name, role, password: $('#uf-pass', d).value, email: staffLocal($('#uf-mail', d).value), assignments: asg, headTeacherOf: role === 'docente' ? ($('#uf-hc', d).value || null) : null, mainLevel: role === 'docente' ? ($('#uf-level', d).value || null) : null } });
+      const r = await API.call('saveUser', { user: { id: id || null, name, role, password: $('#uf-pass', d).value, email: staffLocal($('#uf-mail', d).value), gender: $('#uf-gender', d).value, assignments: asg, headTeacherOf: role === 'docente' ? ($('#uf-hc', d).value || null) : null, mainLevel: role === 'docente' ? ($('#uf-level', d).value || null) : null } });
       DB.users = r.users; d.close(); UI.toast('Usuario guardado.', 'success'); this.users($('#ad-body'));
     });
   },
@@ -311,6 +312,7 @@ const Admin = {
   backup() { UI.download(`respaldo_evaluaciones_${D.today()}.json`, JSON.stringify({ exportado: new Date().toISOString(), students: DB.students, evaluations: DB.evaluations, users: DB.users, config: DB.config }, null, 1)); },
   async resetDemo() { if (await UI.confirm('Restablecer demo', 'Se borrarán los cambios hechos en este navegador y volverán los datos de ejemplo.', 'Restablecer', true)) { Mock.reset(); location.reload(); } }
 };
+
 
 
 

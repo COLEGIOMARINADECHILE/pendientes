@@ -272,3 +272,60 @@ h1,h2,h3{font-weight:900}
 
 .login{overflow-x:hidden}
 body{overflow-x:hidden}
+
+/* ===== Portada: cabe completa en pantalla ===== */
+.login{align-items:center;min-height:100vh;min-height:100dvh;padding:12px}
+.login-card{max-height:calc(100dvh - 24px);max-height:calc(100vh - 24px)}
+.login-form{overflow-y:auto;padding:26px 34px;gap:11px;max-height:calc(100dvh - 24px)}
+.login-brand{padding:30px 34px;gap:12px}
+.login-brand h1{font-size:1.8rem}
+.login-form form{gap:11px}
+.roles{grid-template-columns:repeat(3,1fr);gap:8px}
+.roles button{padding:10px 4px;border-radius:14px;gap:3px}
+.roles button i{font-size:1.2rem}.roles button b{font-size:.78rem;text-align:center}
+.roles .wide{grid-column:span 3;padding:9px}
+#lg-pass{padding:10px 12px}
+.login-form .btn.primary{padding:12px}
+.login-tools{position:fixed;top:14px;right:14px;z-index:5;display:flex;gap:8px;align-items:center}
+.tool,.zoomgrp button{background:rgba(255,255,255,.95);border:0;border-radius:999px;padding:7px 14px;font-weight:700;font-size:.8rem;color:var(--brand-d);box-shadow:0 6px 16px -8px rgba(0,0,0,.5);cursor:pointer}
+.zoomgrp{display:inline-flex;gap:4px}.zoomgrp button{padding:5px 10px;font-size:.78rem;box-shadow:none;border:1px solid var(--line);background:#fff}
+.userbox .zoomgrp button{padding:3px 8px}
+.names{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;max-height:132px;overflow-y:auto;padding:2px}
+.names button{display:flex;align-items:center;gap:9px;padding:7px 10px;border:2px solid var(--line);background:#fff;border-radius:14px;text-align:left;transition:.15s}
+.names button:hover{border-color:var(--brand);transform:translateY(-1px)}
+.names button.on{border-color:var(--brand);background:var(--brand-l);box-shadow:0 0 0 3px rgba(15,105,196,.15)}
+.names .av{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;font-weight:900;font-size:.78rem;color:#fff;background:linear-gradient(135deg,var(--brand),#5aa3f0)}
+.names button:nth-child(3n+2) .av{background:linear-gradient(135deg,var(--coral),#ff9a8a)}
+.names button:nth-child(3n) .av{background:linear-gradient(135deg,var(--leaf),#8cc86a)}
+.names .nm{font-weight:700;font-size:.82rem;color:var(--ink);line-height:1.15}
+@media(max-height:720px){
+  .login-brand{padding:20px 26px}.login-brand img{width:64px;height:64px}.login-brand h1{font-size:1.5rem}
+  .login-form{padding:16px 24px;gap:8px}.login-form form{gap:8px}
+  .roles button i{font-size:1rem}.roles button{padding:7px 4px}
+  .names{max-height:96px}
+  .field>label{font-size:.72rem}
+}
+
+/* ===== Celular ===== */
+@media(max-width:900px){
+  .login-card{max-height:none}.login-form{max-height:none;overflow:visible}
+  .login-brand{padding:18px 22px;flex-direction:row;align-items:center;flex-wrap:wrap}
+  .login-brand h1{font-size:1.3rem}.login-brand p{display:none}.login-brand::after{display:none}
+  .login-brand img{width:56px;height:56px}.badges img{height:38px;width:38px}
+  .side{padding:8px 10px;gap:6px;position:sticky;top:0;z-index:40;flex-wrap:nowrap;overflow-x:auto}
+  .brand{flex:none}.brand div:not(.ic){display:none}.brand .ic,.brand img{width:36px;height:36px}
+  .nav{flex-direction:row;flex-wrap:nowrap;gap:2px;overflow-x:auto}
+  .nav button{flex-direction:column;gap:2px;font-size:.62rem!important;padding:6px 10px;border-radius:12px;white-space:nowrap;flex:none}
+  .nav button i{font-size:1.05rem!important}
+  .top{gap:8px}.userbox{padding:4px 8px 4px 12px;flex-wrap:wrap}
+  .main{padding:12px 10px 50px}
+  .table-wrap{overflow-x:auto}.tbl.fixed{table-layout:auto;min-width:780px}
+  .hero{padding:18px}.kpis{grid-template-columns:repeat(2,1fr)}
+  .toolbar{grid-template-columns:1fr 1fr}.toolbar .field[style*="span 2"]{grid-column:1/-1!important}
+  dialog.modal{width:96vw}
+  .bulkbar .btn{flex:1 1 150px}
+  .page-head h1{font-size:1.3rem}
+}
+@media(max-width:520px){.roles{grid-template-columns:repeat(2,1fr)}.roles .wide{grid-column:span 2}.names{grid-template-columns:1fr 1fr}}
+
+.bulkbar .btn{white-space:normal;text-align:center;line-height:1.25}

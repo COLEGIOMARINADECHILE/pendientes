@@ -216,3 +216,14 @@ const autoEmail = rut => { const m = normRut(rut).match(/^(\d{7,9})-?([\dK])$/);
 const staffLocal = e => String(e || '').split('@')[0].trim().toLowerCase();
 const studentEmail = st => (st && ((st.email || '').trim() || autoEmail(st.rut))) || '';
 
+
+/* Género del funcionario (para el saludo "Estimado/Estimada"): el guardado o el deducido del primer nombre */
+const FEM_STAFF = new Set(['carmen', 'beatriz', 'isabel', 'raquel', 'pilar', 'mercedes', 'soledad', 'rocío', 'rocio', 'ester', 'ruth', 'miriam', 'abigail', 'jazmín', 'jazmin', 'marisol', 'irene', 'karen', 'nicole', 'ingrid', 'inés', 'ines', 'noemí', 'noemi', 'lidia', 'doris', 'edith', 'elizabeth', 'jacqueline', 'jocelyn', 'katherine', 'liliana', 'maribel', 'yenny', 'yasna', 'sandra']);
+const staffGender = u => {
+  if (u && (u.gender === 'M' || u.gender === 'F')) return u.gender;
+  const f = String((u && u.name) || '').trim().split(/\s+/)[0].toLowerCase();
+  if (FEM_STAFF.has(f)) return 'F';
+  if (['luca', 'joshua', 'bautista', 'juan', 'borja'].includes(f)) return 'M';
+  return /a$/.test(f) ? 'F' : 'M';
+};
+const staffGreeting = u => `${staffGender(u) === 'F' ? 'Estimada' : 'Estimado'} ${titleCase(u && u.name)}`;

@@ -73,6 +73,25 @@ const Delivery = {
     $$('[data-one]', d).forEach(b => b.onclick = e => run([rows[+b.dataset.one].teacher], e.currentTarget));
   },
 
+  /** Confirma a qué docentes se enviará su lista de pendientes y la envía. */
+  pendingSendModal(names) {
+    const rows = names.map(n => { const g = this.fill({ teacher: n, done: [] }); return g; }).sort((a, b) => a.teacher.localeCompare(b.teacher, 'es'));
+    if (!rows.length) return UI.toast('No hay docentes con pendientes en esta selección.', 'info');
+    const con = rows.filter(g => g.email && g.pend.length), total = rows.reduce((n, g) => n + g.pend.length, 0);
+    const d = UI.modal({ title: '<i class="fa-solid fa-envelope-circle-check" style="color:var(--brand)"></i> Enviar lista de pendientes a los docentes', wide: true,
+      body: `<div class="notice warn" style="margin-bottom:12px"><b>${total}</b> evaluación(es) pendiente(s) en <b>${rows.length}</b> docente(s). Se enviará a cada uno solo la lista de lo suyo.</div>
+        <div class="table-wrap" style="max-height:50vh"><table class="tbl"><thead><tr><th>Docente</th><th>Saludo</th><th>Pendientes</th><th>Recibirá el correo en</th></tr></thead><tbody>
+        ${rows.map(g => { const u = DB.users.find(x => sameText(x.name, g.teacher)); return `<tr><td><b>${esc(titleCase(g.teacher))}</b></td><td><small>${esc(staffGreeting(u || { name: g.teacher }))}</small></td><td><span class="pill warn">${g.pend.length}</span><details><summary class="muted" style="cursor:pointer;font-size:.78rem">Ver lista</summary>${this.listHtml(g.pend)}</details></td><td>${g.email ? `<i class="fa-regular fa-envelope"></i> ${esc(g.email)}` : '<span class="pill bad">Sin correo registrado</span>'}</td></tr>`; }).join('')}</tbody></table></div>`,
+      footer: `<button class="btn" data-no>No enviar</button><button class="btn" data-pdf><i class="fa-solid fa-file-pdf"></i> PDF por docente</button><button class="btn primary" data-send ${con.length ? '' : 'disabled'}><i class="fa-solid fa-paper-plane"></i> Enviar a ${con.length} docente(s)</button>` });
+    $('[data-no]', d).onclick = () => d.close();
+    $('[data-pdf]', d).onclick = () => PDF.delivery(rows);
+    $('[data-send]', d).onclick = e => UI.busy(e.currentTarget, async () => {
+      const r = await API.call('notifyTeachers', { kind: 'pending', teachers: con.map(g => g.teacher) });
+      d.close(); if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info');
+      UI.modal({ title: 'Resultado del envío', body: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b> · ${x.pending} pendiente(s)</span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` });
+    });
+  },
+
   /** Lista de lo que aún sigue pendiente, por docente. */
   pendingModal() {
     const gs = this.pendingGroups(), total = gs.reduce((n, g) => n + g.pend.length, 0);
@@ -117,4 +136,5 @@ PDF.delivery = function (groups) {
   });
   doc.save(`Ficha_entrega_docentes_${D.today()}.pdf`);
 };
+
 

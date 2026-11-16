@@ -126,7 +126,7 @@ const Mock = {
     const pub = u => ({ id: u.id, name: u.name, role: u.role, assignments: u.assignments || [], headTeacherOf: u.headTeacherOf || null, mainLevel: u.mainLevel || null, email: u.email || '' });
     const me = () => { const u = d.users.find(x => 'mock-' + x.id === token); if (!u) throw new Error('Sesión expirada.'); return u; };
     switch (action) {
-      case 'publicUsers': return { users: d.users.map(u => ({ id: u.id, name: u.name, role: u.role, mainLevel: u.mainLevel || null })) };
+      case 'publicUsers': return { users: d.users.map(u => { const as = u.assignments || [], me = as.filter(a => /medio/i.test(a.course)).length; return { id: u.id, name: u.name, role: u.role, mainLevel: u.mainLevel || null, level: u.mainLevel || (as.length ? (me > as.length - me ? 'Media' : 'Básica') : '') }; }) };
       case 'branding': return { banner: d.branding.banner || '', logo: d.branding.logo || '', badges: d.branding.badges || [] };
       case 'login': {
         const u = d.users.find(x => x.id === p.userId);
@@ -164,5 +164,6 @@ const Mock = {
     }
   }
 };
+
 
 

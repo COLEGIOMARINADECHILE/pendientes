@@ -55,8 +55,8 @@ const App = {
 /* ---------- Login ---------- */
 async function initLogin() {
   const status = $('#lg-status');
-  $$('.seg button').forEach(b => b.onclick = () => {
-    $$('.seg button').forEach(x => x.classList.toggle('on', x === b));
+  $$('.login-form > .seg button').forEach(b => b.onclick = () => {
+    $$('.login-form > .seg button').forEach(x => x.classList.toggle('on', x === b));
     $('#f-staff').hidden = b.dataset.t !== 'staff'; $('#f-family').hidden = b.dataset.t !== 'family';
   });
   let users = [];
@@ -66,19 +66,26 @@ async function initLogin() {
     if (API.demo) status.innerHTML = '<span class="pill warn">MODO DEMO</span> Administrador: <b>ADMINISTRADOR / admin</b> · Docente: <b>ANA PEREZ / 1234</b> · RUT de prueba: <b>24111222-3</b>';
   } catch (e) { status.textContent = 'No se pudo conectar con el servidor: ' + e.message; }
 
+  const initials = n => String(n).trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
   const fill = () => {
     const role = $('#lg-role').value, lvl = $('#lg-level').value;
     $('#lg-level-box').hidden = role !== 'docente';
+    $('#lg-names-box').hidden = !role;
     let l = users.filter(u => u.role === role);
-    if (role === 'docente' && lvl) l = l.filter(u => (u.mainLevel || 'Básica') === lvl);
+    // Docentes: se listan según el nivel en que tienen más horas asignadas (los sin asignaciones aparecen en ambos)
+    if (role === 'docente' && lvl) l = l.filter(u => !u.level || u.level === lvl);
     l.sort((a, b) => a.name.localeCompare(b.name, 'es'));
-    $('#lg-name').innerHTML = role ? opts(l.map(u => [u.id, titleCase(u.name)]), l.length === 1 ? l[0].id : '', l.length ? 'Seleccione su nombre…' : 'No hay usuarios en este perfil') : '<option value="">Seleccione un perfil primero</option>';
+    $('#lg-name').value = l.length === 1 ? l[0].id : '';
+    $('#lg-names').innerHTML = l.length ? l.map(u => `<button type="button" data-id="${esc(u.id)}" class="${l.length === 1 ? 'on' : ''}"><span class="av">${esc(initials(u.name))}</span><span class="nm">${esc(titleCase(u.name))}</span></button>`).join('') : '<p class="muted" style="margin:6px">No hay usuarios en este perfil.</p>';
+    $$('#lg-names button').forEach(b => b.onclick = () => { $$('#lg-names button').forEach(x => x.classList.toggle('on', x === b)); $('#lg-name').value = b.dataset.id; $('#lg-pass').focus(); });
   };
   $('#lg-role').onchange = fill; $('#lg-level').onchange = fill;
-  $$('#lg-roles button').forEach(b => b.onclick = () => { $$('#lg-roles button').forEach(x => x.classList.toggle('on', x === b)); $('#lg-role').value = b.dataset.r; $('#lg-role').dispatchEvent(new Event('change')); setTimeout(() => ($('#lg-name').value ? $('#lg-pass') : $('#lg-name')).focus(), 50); });
+  $$('#lg-levels button').forEach(b => b.onclick = () => { $$('#lg-levels button').forEach(x => x.classList.toggle('on', x === b)); $('#lg-level').value = b.dataset.l; fill(); });
+  $$('#lg-roles button').forEach(b => b.onclick = () => { $$('#lg-roles button').forEach(x => x.classList.toggle('on', x === b)); $('#lg-role').value = b.dataset.r; $('#lg-level').value = ''; $$('#lg-levels button').forEach(x => x.classList.toggle('on', !x.dataset.l)); fill(); });
 
   $('#f-staff').onsubmit = e => {
     e.preventDefault();
+    if (!$('#lg-name').value) return UI.toast('Seleccione su nombre en la lista.', 'error');
     UI.busy($('#lg-btn'), async () => {
       const r = await API.call('login', { userId: $('#lg-name').value, password: $('#lg-pass').value });
       API.setSession(r.token, r.user);
@@ -140,5 +147,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   initLogin();
 });
 
+
+
+
+/* ---------- Instalación como aplicación (PC y celular) y tamaño de pantalla ---------- */
+const Pwa = {
+  evt: null,
+  init() {
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); this.evt = e; this.show(); });
+    window.addEventListener('appinstalled', () => { this.evt = null; $$('[data-install]').forEach(b => b.hidden = true); UI.toast('Aplicación instalada.', 'success'); });
+    // iPhone/iPad no ofrece el aviso automático: se muestra el botón con instrucciones
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent), standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    if (ios && !standalone) this.show();
+    $$('[data-install]').forEach(b => b.onclick = () => this.install());
+    // Zoom
+    this.zoom(0);
+    $$('[data-zoom]').forEach(b => b.onclick = () => this.zoom(+b.dataset.zoom));
+  },
+  show() { $$('[data-install]').forEach(b => b.hidden = false); },
+  async install() {
+    if (this.evt) { this.evt.prompt(); await this.evt.userChoice.catch(() => {}); this.evt = null; return; }
+    UI.modal({ title: 'Instalar la aplicación', body: `<p style="margin-top:0">En iPhone / iPad:</p><ol style="line-height:1.9"><li>Abra esta página en <b>Safari</b>.</li><li>Pulse el botón <b>Compartir</b> <i class="fa-solid fa-arrow-up-from-bracket"></i>.</li><li>Elija <b>«Agregar a la pantalla de inicio»</b>.</li></ol><p class="muted">En Android y computador, use el botón <b>Instalar app</b> o el icono de instalación que aparece en la barra de direcciones del navegador.</p>` });
+  },
+  zoom(step) {
+    let z = parseFloat(localStorage.getItem('ep_zoom')) || (window.innerWidth < 500 ? 0.92 : 1);
+    z = Math.min(1.4, Math.max(0.7, Math.round((z + step * 0.08) * 100) / 100));
+    localStorage.setItem('ep_zoom', z);
+    document.documentElement.style.setProperty('--ui-zoom', z);
+    ['#login', '#app', '#portal'].forEach(s => { const e = $(s); if (e) e.style.zoom = z; });
+    if (step) UI.toast(`Tamaño de la aplicación: ${Math.round(z * 100)}%`, 'info', 1500);
+  }
+};
+document.addEventListener('DOMContentLoaded', () => Pwa.init());
 
 
