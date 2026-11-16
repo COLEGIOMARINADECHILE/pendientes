@@ -282,7 +282,8 @@ const History = {
       b.innerHTML = `<div class="bb-count"><b>${this.list().length}</b><span>evaluación(es) en pantalla</span></div>
         ${tn ? `<button class="btn primary" onclick="Delivery.historyModal('${esc(tn).replace(/'/g, '&#39;')}')"><i class="fa-solid fa-paper-plane"></i> Enviar historial a ${esc(titleCase(tn))}</button>
         <button class="btn" onclick="History.sendPending(true)"><i class="fa-solid fa-envelope-circle-check"></i> Enviarle solo sus pendientes</button>` : '<span class="muted">Elija un docente para enviarle su historial o su lista de pendientes.</span>'}
-        <button class="btn sm" onclick="Delivery.historyModal()">Historial por docente (todos)</button>`;
+        <button class="btn sm" onclick="Delivery.historyModal()">Historial por docente (todos)</button>
+        ${this.f.status === '' ? `<div style="flex-basis:100%;border-top:1px solid var(--line);padding-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">${this.retBtns(false)}</div>` : ''}`;
       return;
     }
     if (this.f.status === ST.PEND) {
@@ -295,19 +296,23 @@ const History = {
         <div class="bb-help">Filtre por ciclo, curso y docente; marque filas (o use la casilla de arriba) y envíe a cada docente la lista de lo que aún tiene pendiente.</div>`;
       return;
     }
-    const vis = this.list().filter(e => e.status === ST.DONE), pend = vis.filter(e => !e.returnedToTeacher), n = this.sel.size, off = n ? '' : 'disabled';
+    b.innerHTML = this.retBtns(true);
+  },
+  /** Botones para marcar varias pruebas como devueltas (o quitar la devolución) de una sola vez. */
+  retBtns(full) {
+    const vis = this.list().filter(e => e.status === ST.DONE), pend = vis.filter(e => !e.returnedToTeacher), selDone = [...this.sel].filter(id => (DB.get('evaluations', id) || {}).status === ST.DONE), n = selDone.length, off = n ? '' : 'disabled';
     const unn = vis.filter(e => e.returnedToTeacher && !e.teacherNotifiedAt).length;
-    b.innerHTML = `<div class="bb-count"><b>${n}</b><span>seleccionada(s)</span></div>
+    return `<div class="bb-count"><b>${n}</b><span>rendida(s) seleccionada(s)</span></div>
       <button class="btn success" ${off} onclick="History.bulkReturn(false)"><i class="fa-solid fa-check-double"></i> Marcar seleccionadas como devueltas</button>
       <button class="btn" onclick="History.bulkReturn(true)" ${pend.length ? '' : 'disabled'}><i class="fa-solid fa-list-check"></i> Marcar TODAS las visibles (${pend.length} sin devolver)</button>
-      <span class="bb-sep"></span>
+      <button class="btn sm" ${off} onclick="History.bulkReturn(false, false)" title="Quita la marca de devuelta a las seleccionadas"><i class="fa-solid fa-rotate-left"></i> Quitar devolución</button>
+      ${full ? `<span class="bb-sep"></span>
       <button class="btn sm" ${off} onclick="History.deliveryFor()"><i class="fa-solid fa-file-pdf"></i> Ficha de entrega</button>
       <button class="btn primary" onclick="History.offerReturned()" title="Muestra a quiénes llegaría y qué pruebas devueltas y pendientes incluye"><i class="fa-solid fa-envelope-circle-check"></i> Avisar a docentes (${unn} devueltas sin avisar)</button>
       <button class="btn sm" onclick="Delivery.historyModal()"><i class="fa-solid fa-paper-plane"></i> Enviar historial a cada docente</button>
       <button class="btn sm" onclick="Delivery.pendingModal()"><i class="fa-solid fa-user-clock"></i> Lista de pendientes por docente</button>
-      <button class="btn sm ghost" ${off} onclick="History.sel.clear();History.refresh()">Limpiar</button>`;
-  },
-  sendPending(all) {
+      <button class="btn sm ghost" ${n ? '' : 'disabled'} onclick="History.sel.clear();History.refresh()">Limpiar</button>` : ''}`;
+  },  sendPending(all) {
     const vis = this.list(), evs = all ? vis : vis.filter(e => this.sel.has(e.id));
     Delivery.pendingSendModal([...new Set(evs.map(e => e.teacher).filter(Boolean))]);
   },
@@ -317,17 +322,21 @@ const History = {
     Delivery.offer(ids);
   },
   deliveryFor() { Delivery.offer([...this.sel]); },
-  bulkReturn(all) {
+  bulkReturn(all, on = true) {
     UI.busy(null, async () => {
       const vis = this.list().filter(e => e.status === ST.DONE);
-      const ids = all ? vis.filter(e => !e.returnedToTeacher).map(e => e.id) : [...this.sel];
-      if (!ids.length) return;
-      await DB.write(ids.map(id => Act.op(id, { returnedToTeacher: true, returnDate: D.today() })));
-      this.sel.clear(); this.refresh(); UI.toast(` prueba(s) marcadas como devueltas al docente.`, 'success');
-      Delivery.offer(ids);
+      const ids = all ? vis.filter(e => !e.returnedToTeacher).map(e => e.id) : [...this.sel].filter(id => (DB.get('evaluations', id) || {}).status === ST.DONE);
+      if (!ids.length) return UI.toast('Marque primero evaluaciones rendidas.', 'error');
+      if (on) {
+        await DB.write(ids.map(id => Act.op(id, { returnedToTeacher: true, returnDate: D.today() })));
+        this.sel.clear(); this.refresh(); UI.toast(`${ids.length} prueba(s) marcadas como devueltas al docente.`, 'success');
+        Delivery.offer(ids);
+      } else {
+        await DB.write(ids.map(id => Act.op(id, { returnedToTeacher: false, returnDate: null, teacherNotifiedAt: null })));
+        this.sel.clear(); this.refresh(); UI.toast(`Se quitó la devolución a ${ids.length} prueba(s).`, 'success');
+      }
     });
-  },
-  returned(id, on) { UI.busy(null, async () => { await DB.write([Act.op(id, { returnedToTeacher: on, returnDate: on ? D.today() : null, teacherNotifiedAt: null })]); this.refresh(); UI.toast(on ? 'Marcada como devuelta. Use «Avisar a docentes» para enviar el resumen.' : 'Devolución quitada.', 'success', 5000); }); },
+  },  returned(id, on) { UI.busy(null, async () => { await DB.write([Act.op(id, { returnedToTeacher: on, returnDate: on ? D.today() : null, teacherNotifiedAt: null })]); this.refresh(); UI.toast(on ? 'Marcada como devuelta. Use «Avisar a docentes» para enviar el resumen.' : 'Devolución quitada.', 'success', 5000); }); },
   reopen(id) { UI.busy(null, async () => { const ev = DB.get('evaluations', id); if (ev.status === ST.EXCL) await Act.restoreExcluded(ev); else await Act.reopen(ev); UI.toast('Vuelve al proceso como pendiente.', 'success'); this.refresh(); }); },
   pdf() {
     const l = this.list(); if (!l.length) return UI.toast('No hay datos para descargar.', 'error');
@@ -385,10 +394,10 @@ const Teacher = {
       <div class="bb-help">Marque a todos los estudiantes que quiera (o el casillero de la cabecera para todos) y elija si rindieron o no el instrumento. Quienes no rindieron se reprograman solos al próximo día oficial.</div></div>` : '';
   },
   selected() { return [...this.sel].map(id => DB.get('evaluations', id)).filter(Boolean); },
-  bulkDone(btn) { UI.busy(btn, async () => { const n = await Act.done(this.selected()); this.sel.clear(); this.refresh(); UI.toast(` evaluación(es) registradas como rendidas y recibidas.`, 'success'); }); },
+  bulkDone(btn) { UI.busy(btn, async () => { const n = await Act.done(this.selected()); this.sel.clear(); this.refresh(); UI.toast(`${n} evaluación(es) registradas como rendidas y recibidas.`, 'success'); }); },
   async bulkAbsent(btn) {
     if (!await UI.confirm('Marcar como no rindieron', `Se registrará la inasistencia de <b>${this.sel.size}</b> estudiante(s). Se reprograman automáticamente en el siguiente día oficial; si ya agotaron las citaciones pasan a UTP.`, 'Registrar inasistencias', true)) return;
-    UI.busy(btn, async () => { const r = await Act.absent(this.selected()); this.sel.clear(); this.refresh(); UI.toast(` reagendada(s) · ${r.utp} a UTP · ${r.susp} por suspensión.`, 'success'); });
+    UI.busy(btn, async () => { const r = await Act.absent(this.selected()); this.sel.clear(); this.refresh(); UI.toast(`${r.nuevas} reagendada(s) · ${r.utp} a UTP · ${r.susp} por suspensión.`, 'success'); });
   },
   received(id, btn) { UI.busy(btn, async () => { await Act.done([DB.get('evaluations', id)]); UI.toast('Registrada como rendida y recibida.', 'success'); this.refresh(); }); }
 };
@@ -438,6 +447,8 @@ const Rooms = {
     PDF.rooms(this.dist, $('#rm-cycle').value, $('#rm-date').value, $('#rm-order').value, 'print');
   }
 };
+
+
 
 
 

@@ -1,6 +1,6 @@
 ﻿/* ===== Estadística: rendición por docente, asignatura, curso y estudiantes críticos ===== */
 const Stats = {
-  f: { cycle: '', course: '', teacher: '' },
+  f: { cycle: '', course: '', teacher: '' }, top: 15,
 
   mount(el) {
     el.innerHTML = `
@@ -37,6 +37,18 @@ const Stats = {
     return Object.values(m).map(r => ({ ...r, pct: r.total ? Math.round(r.done * 100 / r.total) : 0, pctEx: r.total ? Math.round(r.ex * 100 / r.total) : 0 }));
   },
 
+  /** Todas las citaciones de una evaluación: las inasistencias anteriores y la vigente. Devuelve [{d, tipo}] en orden. */
+  cits(e) {
+    const l = (e.history || []).filter(h => h && h.date).map(h => ({ d: h.date, tipo: /inasist/i.test(h.status || '') ? 'no asistió' : (h.status || '') }));
+    if (e.citationDate) l.push({ d: e.citationDate, tipo: e.citationDate < D.today() ? 'fecha vencida' : 'vigente' });
+    return l;
+  },
+  firstCit(e) { const c = this.cits(e); return c.length ? c[0].d : ''; },
+  citLine(e) {
+    const c = this.cits(e);
+    return c.map((x, i) => `${i + 1}ª ${D.fmt(x.d)} (${x.tipo})`).join(' · ') + (isUtp(e) ? ' · en UTP, sin fecha' : (!e.citationDate ? ' · sin fecha vigente' : ''));
+  },
+
   bar(p, color) { return `<div class="bar"><i style="width:${p}%;background:${color}"></i><span>${p}%</span></div>`; },
 
   table(title, icon, rows, keyLabel, fmtKey) {
@@ -54,10 +66,10 @@ const Stats = {
     const bySubject = this.agg(l, e => e.subject).sort((a, b) => b.pend - a.pend);
     const byCourse = this.agg(l, e => e.course).sort((a, b) => COURSES.indexOf(a.key) - COURSES.indexOf(b.key));
     const st = {};
-    l.forEach(e => { const k = e.course + '||' + e.studentName, r = st[k] = st[k] || { name: e.studentName, course: e.course, pend: 0, total: 0, ex: 0, subj: [] }; r.total++; if (e.status === ST.PEND) r.pend++; if (Stats.exhausted(e)) { r.ex++; r.subj.push(e.subject); } });
+    l.forEach(e => { const k = e.course + '||' + e.studentName, r = st[k] = st[k] || { name: e.studentName, course: e.course, pend: 0, total: 0, ex: 0, subj: [], evs: [] }; r.total++; if (e.status === ST.PEND) { r.pend++; r.evs.push(e); } if (Stats.exhausted(e)) { r.ex++; r.subj.push(e.subject); } });
     const students = Object.values(st);
     return { excl, l, total, done, pend, fail, ex, byTeacher, bySubject, byCourse,
-      topPend: students.filter(s => s.pend).sort((a, b) => b.pend - a.pend || a.name.localeCompare(b.name, 'es')).slice(0, 15),
+      topPend: students.filter(s => s.pend).sort((a, b) => b.pend - a.pend || a.name.localeCompare(b.name, 'es')).slice(0, this.top || 9999),
       stuEx: students.filter(s => s.ex).sort((a, b) => b.ex - a.ex || a.name.localeCompare(b.name, 'es')), nStudents: students.length };
   },
 
@@ -72,13 +84,17 @@ const Stats = {
         ${s.byCourse.map(r => `<div style="display:grid;grid-template-columns:100px 1fr 90px;gap:10px;align-items:center"><b>${esc(r.key)}</b>${this.bar(r.pct, r.pct >= 70 ? 'var(--leaf)' : r.pct >= 40 ? 'var(--sun)' : 'var(--coral)')}<small>${r.done}/${r.total} rendidas</small></div>`).join('') || '<span class="muted">Sin datos.</span>'}</div></div>
       ${this.table('Por docente', 'fa-person-chalkboard', s.byTeacher, 'Docente')}
       ${this.table('Por asignatura', 'fa-book', s.bySubject, 'Asignatura', k => subjBadge(k))}
-      <div class="card"><h2><i class="fa-solid fa-user-clock"></i> Estudiantes con más evaluaciones pendientes</h2>
-        <div class="table-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Estudiante</th><th>Curso</th><th>Pendientes</th><th>Total registradas</th></tr></thead><tbody>
-        ${s.topPend.map(r => `<tr><td><b>${esc(fmtName(r.name))}</b></td><td>${esc(r.course)}</td><td><span class="pill ${r.pend >= 3 ? 'bad' : 'warn'}">${r.pend}</span></td><td>${r.total}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Sin pendientes.</td></tr>'}</tbody></table></div></div>
+      <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h2><i class="fa-solid fa-user-clock"></i> Seguimiento: estudiantes con más evaluaciones pendientes</h2>
+        <div class="field" style="min-width:150px"><select id="st-top">${opts([[10, 'Los 10 con más pendientes'], [15, 'Los 15 con más pendientes'], [30, 'Los 30 con más pendientes'], [60, 'Los 60 con más pendientes'], [0, 'Todos con pendientes']], this.top)}</select></div></div>
+        <p class="muted">Cada estudiante con el detalle de lo que adeuda: asignatura, evaluación, fecha de la primera citación y <b>todas</b> sus citaciones (con su resultado).</p>
+        <div class="table-wrap" style="margin-top:12px;max-height:640px"><table class="tbl"><thead><tr><th>Asignatura</th><th>Evaluación</th><th>Docente</th><th>1ª citación</th><th style="min-width:260px">Todas las citaciones</th></tr></thead>
+        ${s.topPend.map(r => `<tbody><tr style="background:var(--brand-l)"><td colspan="5"><b style="font-size:.95rem">${esc(fmtName(r.name))}</b> · ${esc(r.course)} <span class="pill ${r.pend >= 3 ? 'bad' : 'warn'}" style="margin-left:6px">${r.pend} pendiente(s)</span> <small class="muted">de ${r.total} registradas</small></td></tr>
+          ${r.evs.sort((a, b) => String(this.firstCit(a) || '9').localeCompare(String(this.firstCit(b) || '9'))).map(e => `<tr class="${isUtp(e) ? 'st-utp' : ''}"><td>${subjBadge(e.subject)}</td><td style="font-size:.82rem">${esc([e.instrumentType, e.content].filter(Boolean).join(': ') || '—')}</td><td>${esc(titleCase(e.teacher))}</td><td>${this.firstCit(e) ? D.fmt(this.firstCit(e)) : '<span class="muted">Sin fecha</span>'}</td><td style="font-size:.8rem">${esc(this.citLine(e)) || '—'}</td></tr>`).join('')}</tbody>`).join('') || '<tbody><tr><td colspan="5" class="muted">Sin pendientes.</td></tr></tbody>'}</table></div></div>
       <div class="card"><h2><i class="fa-solid fa-triangle-exclamation" style="color:var(--utp)"></i> Sin rendir pese a agotar las oportunidades</h2>
         <p class="muted">Estudiantes con evaluaciones en manos de UTP (más de 3 oportunidades) o cerradas con nota mínima. Afecta a <b>${s.stuEx.length}</b> de ${s.nStudents} estudiante(s) con registros (${pct(s.stuEx.length, s.nStudents)}%).</p>
         <div class="table-wrap" style="margin-top:12px;max-height:420px"><table class="tbl"><thead><tr><th>Estudiante</th><th>Curso</th><th>Evaluaciones</th><th>Asignaturas</th></tr></thead><tbody>
         ${s.stuEx.map(r => `<tr class="st-utp"><td><b>${esc(fmtName(r.name))}</b></td><td>${esc(r.course)}</td><td><span class="pill utp">${r.ex}</span></td><td>${[...new Set(r.subj)].map(subjBadge).join(' ')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Ningún estudiante en esta situación.</td></tr>'}</tbody></table></div></div>`;
+    $('#st-top').onchange = e => { this.top = +e.target.value; this.refresh(); };
   },
 
   pdf() {
@@ -90,11 +106,12 @@ const Stats = {
     const t = (title, head, rows) => { doc.autoTable({ head: [[{ content: title, colSpan: head.length, styles: { fillColor: [10, 79, 158] } }], head], body: rows, startY: y, margin: { left: PDF.M, right: PDF.M }, theme: 'grid', headStyles: { fillColor: [15, 105, 196], textColor: 255 }, styles: { fontSize: 7.6, cellPadding: 2 } }); y = doc.lastAutoTable.finalY + 8; };
     const ag = r => [r.key, r.total, r.done, r.pend, r.pct + '%', r.ex, r.pctEx + '%'], H = k => [k, 'Total', 'Rendidas', 'Pendientes', '% rendición', 'Oport. agotadas', '% sin rendir'];
     t('Por docente', H('Docente'), s.byTeacher.map(ag)); t('Por asignatura', H('Asignatura'), s.bySubject.map(ag)); t('Por curso', H('Curso'), s.byCourse.map(ag));
-    t('Estudiantes con más pendientes', ['Estudiante', 'Curso', 'Pendientes', 'Total'], s.topPend.map(r => [fmtName(r.name), r.course, r.pend, r.total]));
+    t('Seguimiento: estudiantes con más pendientes', ['Estudiante', 'Asignatura', 'Evaluación', '1ª citación', 'Todas las citaciones'], s.topPend.flatMap(r => r.evs.map((e, i) => [i === 0 ? `${fmtName(r.name)} (${r.course}) - ${r.pend} pend.` : '', e.subject, [e.instrumentType, e.content].filter(Boolean).join(': ') || '-', this.firstCit(e) ? D.fmt(this.firstCit(e)) : 'Sin fecha', this.citLine(e)])));
     t('Sin rendir pese a oportunidades agotadas', ['Estudiante', 'Curso', 'Evaluaciones', 'Asignaturas'], s.stuEx.map(r => [fmtName(r.name), r.course, r.ex, [...new Set(r.subj)].join(', ')]));
     doc.save(`Estadistica_${D.today()}.pdf`);
   }
 };
+
 
 
 

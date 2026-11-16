@@ -198,7 +198,7 @@ const Pending = {
     if (!v) return;
     UI.busy(null, async () => {
       const n = await Act.exclude(evs, v); this.sel.clear(); this.refresh();
-      UI.toast(` evaluación(es) marcada(s) como NO consideradas.`, 'success');
+      UI.toast(`${n} evaluación(es) marcada(s) como NO consideradas.`, 'success');
       if (v.notify && n) {
         await DB.flush();
         const r = await API.call('notifyExcluded', { evalIds: evs.map(e => e.id) });
