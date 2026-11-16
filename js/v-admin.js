@@ -194,7 +194,19 @@ const Admin = {
   async mail(el) {
     if (API.demo) { el.innerHTML = '<div class="card"><div class="notice">Los correos se configuran al conectar la plataforma con Apps Script.</div></div>'; return; }
     el.innerHTML = '<div class="card"><i class="fa-solid fa-spinner fa-spin"></i> Consultando estado…</div>';
-    let enabled = false; try { enabled = (await API.call('weeklyStatus')).enabled; } catch (e) { UI.toast(e.message, 'error'); }
+    let enabled = false, st = {};
+    try { st = await API.call('weeklyStatus'); enabled = st.enabled; } catch (e) { st = { needsAuth: /permiso|Authorization|autoriz/i.test(e.message), detail: e.message }; }
+    if (st.needsAuth) {
+      el.innerHTML = `<div class="card"><h2><i class="fa-solid fa-key" style="color:var(--warn)"></i> Falta autorizar los permisos del correo</h2>
+        <p class="muted">Google aún no autorizó a su Apps Script a enviar correos y programar el envío del jueves. Se hace una sola vez:</p>
+        <ol style="line-height:2"><li>Abra su proyecto en <b>script.google.com</b> y pegue el último <b>Code.gs</b>; guarde con Ctrl+S.</li>
+          <li>En la lista de funciones (arriba) elija <b>inicializar</b> y pulse <b>▶ Ejecutar</b>.</li>
+          <li>Pulse <b>Revisar permisos</b> → elija su cuenta → <b>Configuración avanzada</b> → <b>Ir a (nombre del proyecto)</b> → <b>Permitir</b>.</li>
+          <li>Vaya a <b>Implementar → Administrar implementaciones</b> → lápiz → Versión <b>Nueva versión</b> → <b>Implementar</b>.</li>
+          <li>Vuelva aquí y pulse el botón de abajo.</li></ol>
+        <button class="btn primary" onclick="Admin.mail($('#ad-body'))"><i class="fa-solid fa-rotate"></i> Ya lo hice, reintentar</button></div>`;
+      return;
+    }
     el.innerHTML = `
       <div class="card"><h2><i class="fa-regular fa-envelope"></i> Aviso semanal de pruebas</h2>
         <p class="muted">Cada <b>jueves</b> los estudiantes reciben un correo con las pruebas que rinden la <b>semana siguiente</b> (lunes a domingo): fecha, hora, sala, docente y contenido. El correo es <code>RUT@andaliensur.cl</code> (editable por estudiante) y se copia al apoderado si tiene correo registrado.</p>
@@ -312,6 +324,7 @@ const Admin = {
   backup() { UI.download(`respaldo_evaluaciones_${D.today()}.json`, JSON.stringify({ exportado: new Date().toISOString(), students: DB.students, evaluations: DB.evaluations, users: DB.users, config: DB.config }, null, 1)); },
   async resetDemo() { if (await UI.confirm('Restablecer demo', 'Se borrarán los cambios hechos en este navegador y volverán los datos de ejemplo.', 'Restablecer', true)) { Mock.reset(); location.reload(); } }
 };
+
 
 
 

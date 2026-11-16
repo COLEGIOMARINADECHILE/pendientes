@@ -6,7 +6,7 @@ const Register = {
     this.names = [];
     const doc = Auth.role === 'docente';
     el.innerHTML = `
-      <div class="hero"><div class="hero-ic"><i class="fa-solid fa-file-circle-plus"></i></div><div><h1>${doc ? 'Ingresa tus evaluaciones pendientes' : 'Registrar evaluación pendiente'}</h1><p>Un solo formulario para uno o varios estudiantes. El sistema asigna el día oficial, avisa de cualquier situación especial y <b>envía el aviso por correo</b> al estudiante.</p></div></div>
+      <div class="hero"><div class="hero-ic"><i class="fa-solid fa-file-circle-plus"></i></div><div><h1>${doc ? 'Ingresa tus evaluaciones pendientes' : 'Registrar evaluación pendiente'}</h1><span class="cy-chip" id="rg-chip" hidden></span><p>Un solo formulario para uno o varios estudiantes. El sistema asigna el día oficial, avisa de cualquier situación especial y <b>envía el aviso por correo</b> al estudiante.</p></div></div>
       ${doc ? `<div class="notice" style="margin-bottom:16px"><i class="fa-solid fa-circle-info"></i> Solo verá los ciclos, cursos y asignaturas que tiene asignados; usted queda como docente responsable.</div>` : ''}
       <form id="rg" class="stack" novalidate>
         <div class="card stepcard"><div class="step"><span class="n" style="--c:var(--brand)">1</span><div><h2>Curso y evaluación</h2><small>¿Qué prueba y de qué curso?</small></div></div>
@@ -69,8 +69,15 @@ const Register = {
   myCourses: () => [...new Set((Auth.user.assignments || []).map(a => a.course))],
   courseStudents() { const c = $('#rg-course').value; return DB.students.filter(s => s.course === c && !s.withdrawn).sort((a, b) => a.name.localeCompare(b.name, 'es')); },
 
+  /** Cambia el color de la pantalla según el ciclo elegido. */
+  paint(cy) {
+    const i = CYCLES.findIndex(c => c.name === cy) + 1, mn = $('.main'), chip = $('#rg-chip');
+    if (mn) mn.className = 'main' + (i ? ' cy-' + i : '');
+    if (chip) { chip.hidden = !i; chip.textContent = cy || ''; }
+  },
   onCycle() {
-    const cy = $('#rg-cycle').value, c = CYCLES.find(x => x.name === cy);
+    const cy = $('#rg-cycle').value; this.paint(cy);
+    const c = CYCLES.find(x => x.name === cy);
     let courses = c ? c.courses : [];
     if (Auth.role === 'docente') courses = courses.filter(x => this.myCourses().includes(x));
     $('#rg-course').innerHTML = opts(courses, courses.length === 1 ? courses[0] : '', cy ? 'Seleccione…' : 'Primero elija el ciclo');
@@ -273,6 +280,7 @@ const Register = {
       <ul class="list">${recs.map(r => `<li><span>${esc(fmtName(r.name))}</span><span class="pill ${r.kind === 'closed' ? 'vio' : r.date ? 'ok' : 'sky'}">${r.kind === 'closed' ? 'Cerrada por salud' : r.date ? D.long(r.date) : 'Sin fecha (UTP reagenda)'}</span></li>`).join('')}</ul>${mailNote ? `<div style="margin-top:10px"><i class="fa-regular fa-envelope"></i> ${esc(mailNote)}</div>` : ''}` });    this.mount($('#view'));
   }
 };
+
 
 
 

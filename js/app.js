@@ -23,6 +23,7 @@ const App = {
   view: null,
   go(v) {
     this.view = v;
+    $('.main').className = 'main';   // quita el color de ciclo de la pantalla de registro
     $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
     const label = (NAV[Auth.role].find(n => n[0] === v) || [])[1] || '';
     $('#top-title').textContent = label;
@@ -204,6 +205,7 @@ const Pwa = {
   }
 };
 document.addEventListener('DOMContentLoaded', () => Pwa.init());
+
 
 
 

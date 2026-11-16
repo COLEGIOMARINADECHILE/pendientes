@@ -401,3 +401,20 @@ dialog.popup{width:min(520px,94vw);border-radius:20px}
 .side.has-banner .brand{display:none}
 @media(max-width:1250px){.sd-banner{display:none}.side.has-banner .brand{display:flex}}
 @media(max-width:900px){.login-brand img.lg-banner{max-height:120px}.login-brand img.creator{width:min(100%,170px)}}
+
+/* ===== Color por ciclo en Registrar evaluación ===== */
+.main{transition:background .5s ease}
+.main.cy-1{--cy:#f59e0b;--cy2:#fcd34d;--cy-l:#fff6df;--cy-d:#b45309}
+.main.cy-2{--cy:#22a35a;--cy2:#6bd08e;--cy-l:#e8f8ee;--cy-d:#146c3b}
+.main.cy-3{--cy:#6d4fe0;--cy2:#a78bfa;--cy-l:#f0ebff;--cy-d:#4527b5}
+.main[class*="cy-"]{background:linear-gradient(180deg,var(--cy-l) 0,var(--bg) 560px)}
+.main[class*="cy-"] .hero{background:linear-gradient(120deg,var(--cy-d),var(--cy) 62%,var(--cy2));box-shadow:0 18px 36px -20px var(--cy)}
+.main[class*="cy-"] .hero::before{background:rgba(255,255,255,.22)}
+.main[class*="cy-"] .hero::after{background:rgba(0,0,0,.12)}
+.main[class*="cy-"] .stepcard{background:#fff;border-top-color:var(--cy);box-shadow:0 14px 30px -20px var(--cy)}
+.main[class*="cy-"] .step .n{background:var(--cy)!important;box-shadow:0 8px 16px -8px var(--cy)}
+.main[class*="cy-"] .step h2{color:var(--cy-d)}
+.main[class*="cy-"] .btn.primary{background:var(--cy);box-shadow:0 6px 16px -8px var(--cy)}
+.main[class*="cy-"] input:focus,.main[class*="cy-"] select:focus,.main[class*="cy-"] textarea:focus{border-color:var(--cy);box-shadow:0 0 0 3px var(--cy-l)}
+.main[class*="cy-"] .page-head h1,.main[class*="cy-"] .top{color:inherit}
+.cy-chip{display:inline-block;margin:8px 0 0;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);border-radius:999px;padding:3px 14px;font-weight:900;font-size:.82rem;letter-spacing:.03em;position:relative;z-index:1}
