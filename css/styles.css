@@ -418,3 +418,38 @@ dialog.popup{width:min(520px,94vw);border-radius:20px}
 .main[class*="cy-"] input:focus,.main[class*="cy-"] select:focus,.main[class*="cy-"] textarea:focus{border-color:var(--cy);box-shadow:0 0 0 3px var(--cy-l)}
 .main[class*="cy-"] .page-head h1,.main[class*="cy-"] .top{color:inherit}
 .cy-chip{display:inline-block;margin:8px 0 0;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);border-radius:999px;padding:3px 14px;font-weight:900;font-size:.82rem;letter-spacing:.03em;position:relative;z-index:1}
+
+/* ===== Portal de estudiantes y familias ===== */
+.portal{background:linear-gradient(180deg,#e8f1fb,var(--bg) 380px)}
+.portal-box{max-width:780px;padding:20px 22px 34px;border-radius:26px}
+.pt-banner{display:block;width:100%;max-height:150px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:16px;margin:14px 0 8px;padding:4px}
+.pt-hero{display:flex;gap:16px;align-items:center;margin:14px 0;padding:20px;border-radius:20px;color:#fff;background:linear-gradient(120deg,#0a4f9e,#0f69c4 60%,#2f8be6);position:relative;overflow:hidden}
+.pt-hero::after{content:"";position:absolute;right:-50px;top:-60px;width:200px;height:200px;border-radius:50%;background:rgba(254,101,101,.35)}
+.pt-hero>*{position:relative;z-index:1}.pt-hero h2{color:#fff;font-size:1.35rem;margin:2px 0 6px}.pt-hero small{opacity:.9}
+.pt-hero .pill{background:rgba(255,255,255,.22);color:#fff}
+.pt-av{width:64px;height:64px;flex:none;border-radius:50%;background:#fff;color:var(--brand-d);display:grid;place-items:center;font-weight:900;font-size:1.4rem;box-shadow:0 8px 18px -8px rgba(0,0,0,.5)}
+.pt-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.pt-stat{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;border:1px solid var(--line)}
+.pt-stat i{font-size:1.5rem}.pt-stat b{font-size:1.8rem;line-height:1}.pt-stat span{color:var(--muted);font-weight:700;font-size:.85rem}
+.pt-stat.pend{background:var(--warn-l)}.pt-stat.pend i,.pt-stat.pend b{color:var(--warn)}
+.pt-stat.done{background:var(--ok-l)}.pt-stat.done i,.pt-stat.done b{color:var(--ok)}
+.pt-h{margin:20px 0 8px;display:flex;align-items:center;gap:10px;font-size:1.1rem}
+.pd-card{display:flex;gap:0;margin-top:12px;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--bg,#fff);box-shadow:0 10px 22px -16px rgba(15,60,120,.4)}
+.pd-date{width:78px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#fff;background:var(--brand);padding:10px 4px;text-align:center}
+.pd-date b{font-size:2rem;line-height:1}.pd-date small{font-size:.68rem;letter-spacing:.08em;font-weight:700;opacity:.92}
+.pd-date.bad{background:linear-gradient(160deg,#d63d3d,#f0756e)}.pd-date.warn{background:linear-gradient(160deg,#cf8208,#f5b700)}
+.pd-date.ok{background:linear-gradient(160deg,#0a4f9e,#2f8be6)}.pd-date.utp{background:linear-gradient(160deg,#c24e08,#f07d2a)}.pd-date.sky{background:linear-gradient(160deg,#0a8fd1,#58c0f0)}
+.pd-main{padding:14px 16px;flex:1;min-width:0}
+.pd-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.pd-top b{color:var(--c);font-size:1.05rem}.pd-top .pill{margin-left:auto}
+.pd-ic{width:34px;height:34px;flex:none;border-radius:50%;background:var(--c);color:#fff;display:inline-grid;place-items:center;font-size:.95rem}
+.pd-content{margin:6px 0 8px;font-size:.92rem;color:#2d3a55}
+.pd-meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.8rem;color:var(--muted)}.pd-meta i{color:var(--c);margin-right:4px}
+.dn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.dn-card{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-left:5px solid var(--c,var(--ok));border-radius:14px;background:#f8fdf9}
+.dn-card b{display:block;font-size:.9rem}.dn-card small{color:var(--muted);font-size:.75rem}
+.dn-check{color:var(--ok);font-size:1.3rem}
+.pt-empty{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;padding:26px;border-radius:18px;background:var(--ok-l);color:#2a6d12}
+.pt-empty i{font-size:2.4rem}
+@media(max-width:520px){.pd-date{width:62px}.pd-date b{font-size:1.6rem}.pt-hero{flex-direction:column;align-items:flex-start}.pd-top .pill{margin-left:0}}
+
+.pt-hero .pill.brand{background:rgba(255,255,255,.25);color:#fff;font-size:.8rem;padding:4px 12px}

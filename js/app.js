@@ -113,31 +113,89 @@ async function bootApp(pre) {
   await App.enter();
 }
 
-/* ---------- Portal de familias ---------- */
+/* ---------- Portal de familias y estudiantes ---------- */
 const Portal = {
+  icon(subject) {
+    const s = normP(subject);
+    const map = [['MATEM', 'fa-square-root-variable'], ['GEOMETR', 'fa-shapes'], ['LENGUAJE', 'fa-book-open'], ['LITERATURA', 'fa-book-open'], ['HISTORIA', 'fa-landmark'], ['NATURAL', 'fa-seedling'], ['QUIMICA', 'fa-flask'], ['FISICA', 'fa-atom'], ['BIOLOG', 'fa-dna'], ['ARTE', 'fa-palette'], ['MUSICA', 'fa-music'], ['TECNOLOG', 'fa-laptop-code'], ['ED. FISICA', 'fa-person-running'], ['EDUCACION FISICA', 'fa-person-running'], ['INGLES', 'fa-language'], ['RELIGION', 'fa-dove'], ['ORIENT', 'fa-compass'], ['FILOSOF', 'fa-lightbulb'], ['CIUDADAN', 'fa-scale-balanced']];
+    const hit = map.find(([k]) => s.includes(k));
+    return hit ? hit[1] : 'fa-book';
+  },
+  palette(subject) {
+    let h = 0; for (const c of subject || '') h = c.charCodeAt(0) + ((h << 5) - h);
+    return [['#3b82f6', '#eff6ff'], ['#8b5cf6', '#f5f3ff'], ['#ec4899', '#fdf2f8'], ['#f97316', '#fff7ed'], ['#06b6d4', '#ecfeff'], ['#22c55e', '#f0fdf4'], ['#ca8a04', '#fefce8'], ['#0ea5e9', '#f0f9ff']][Math.abs(h) % 8];
+  },
+
   open(r) {
-    const s = r.student, hoy = D.today(), g = s.gender === 'M' ? 'El' : s.gender === 'F' ? 'La' : 'El/La';
-    const pend = r.evals.filter(e => e.status === ST.PEND || e.status === 'Licencia Médica').sort((a, b) => (a.citationDate || '9').localeCompare(b.citationDate || '9'));
-    const done = r.evals.filter(e => !pend.includes(e));
-    const pal = subj => { let h = 0; for (const c of subj || '') h = c.charCodeAt(0) + ((h << 5) - h); return [['#3b82f6', '#eff6ff'], ['#8b5cf6', '#f5f3ff'], ['#ec4899', '#fdf2f8'], ['#f97316', '#fff7ed'], ['#06b6d4', '#ecfeff'], ['#22c55e', '#f0fdf4'], ['#ca8a04', '#fefce8'], ['#0ea5e9', '#f0f9ff']][Math.abs(h) % 8]; };
-    const card = e => {
-      const [c, bg] = pal(e.subject), utp = isUtp(e), resched = isReschedule(e);
-      let chip = '<span class="pill">Por agendar</span>';
-      if (utp) chip = '<span class="pill utp"><i class="fa-solid fa-user-shield"></i> En manos de UTP</span>';
-      else if (resched) chip = '<span class="pill sky">Reposo médico: por reagendar</span>';
-      else if (e.citationDate) { const n = D.days(hoy, e.citationDate) - 1; chip = n < 0 ? '<span class="pill bad">Fecha pasada</span>' : n === 0 ? '<span class="pill bad">¡Es hoy!</span>' : n === 1 ? '<span class="pill warn">Es mañana</span>' : `<span class="pill ${n <= 7 ? 'warn' : 'ok'}">En ${n} días</span>`; }
-      return `<div class="pcard" style="--c:${c};--bg2:${bg}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b style="color:${c}">${esc(e.subject)}</b>${chip}</div>
-        <div style="font-size:.88rem;margin-top:6px"><b>Docente:</b> ${esc(titleCase(e.teacher))}<br><b>Temática:</b> ${esc(e.content || '-')}</div>
-        <div style="background:#fff;border-radius:10px;padding:10px 12px;margin-top:10px"><small><i class="fa-regular fa-calendar-check"></i> FECHA DE RENDICIÓN</small><br><b style="color:${utp ? 'var(--utp)' : c}">${e.citationDate ? `${D.long(e.citationDate)} · ${esc(e.citationTime || DEFAULT_TIME)}` : utp ? 'La fecha la asigna la Unidad Técnica Pedagógica' : 'Pendiente de agendar'}</b>${e.room ? `<br><small><i class="fa-solid fa-door-open"></i> Sala: <b>${esc(e.room)}</b></small>` : ''}
-        ${utp ? '<div class="notice utp" style="margin-top:8px;font-size:.8rem">Esta evaluación agotó las citaciones al hogar: la aplica la UTP dentro del horario de clases. <b>No se enviará una nueva citación.</b></div>' : ''}</div></div>`;
+    const s = r.student, hoy = D.today(), hi = s.gender === 'F' ? '¡Hola' : s.gender === 'M' ? '¡Hola' : '¡Hola';
+    const isPend = e => e.status === ST.PEND || e.status === 'Licencia Médica';
+    const pend = r.evals.filter(isPend).sort((a, b) => (a.citationDate || '9').localeCompare(b.citationDate || '9'));
+    const done = r.evals.filter(e => e.status === ST.DONE).sort((a, b) => (b.completedDate || b.citationDate || '').localeCompare(a.completedDate || a.citationDate || ''));
+    const other = r.evals.filter(e => !isPend(e) && e.status !== ST.DONE);
+    const ini = String(s.name).trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+
+    const pendCard = e => {
+      const [c, bg] = this.palette(e.subject), utp = isUtp(e), resched = isReschedule(e), lic = e.status === 'Licencia Médica';
+      let n = null, urg = 'ok', chip = '';
+      if (e.citationDate) n = D.days(hoy, e.citationDate) - 1;
+      if (utp) { urg = 'utp'; chip = '<span class="pill utp"><i class="fa-solid fa-user-shield"></i> En manos de UTP</span>'; }
+      else if (resched || lic) { urg = 'sky'; chip = '<span class="pill sky"><i class="fa-solid fa-notes-medical"></i> Reposo médico: se reagenda</span>'; }
+      else if (n === null) chip = '<span class="pill"><i class="fa-regular fa-calendar"></i> Por agendar</span>';
+      else if (n < 0) { urg = 'bad'; chip = '<span class="pill bad"><i class="fa-solid fa-triangle-exclamation"></i> Fecha pasada</span>'; }
+      else if (n === 0) { urg = 'bad'; chip = '<span class="pill bad"><i class="fa-solid fa-bell"></i> ¡Es hoy!</span>'; }
+      else if (n === 1) { urg = 'warn'; chip = '<span class="pill warn"><i class="fa-solid fa-bell"></i> Es mañana</span>'; }
+      else { urg = n <= 7 ? 'warn' : 'ok'; chip = `<span class="pill ${n <= 7 ? 'warn' : 'ok'}"><i class="fa-regular fa-clock"></i> En ${n} días</span>`; }
+      const d = e.citationDate ? D.parse(e.citationDate) : null;
+      const block = d
+        ? `<div class="pd-date ${urg}"><small>${WEEKDAYS[d.getDay()].slice(0, 3).toUpperCase()}</small><b>${d.getDate()}</b><small>${['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'][d.getMonth()]}</small></div>`
+        : `<div class="pd-date ${urg}"><i class="fa-solid ${utp ? 'fa-user-shield' : 'fa-hourglass-half'}" style="font-size:1.6rem"></i><small>${utp ? 'UTP' : 'Sin fecha'}</small></div>`;
+      return `<div class="pd-card" style="--c:${c};--bg:${bg}">
+        ${block}
+        <div class="pd-main">
+          <div class="pd-top"><span class="pd-ic"><i class="fa-solid ${this.icon(e.subject)}"></i></span><b>${esc(e.subject)}</b>${chip}</div>
+          <div class="pd-content">${esc(e.content || 'Sin contenido registrado')}</div>
+          <div class="pd-meta"><span><i class="fa-solid fa-person-chalkboard"></i> ${esc(titleCase(e.teacher))}</span>
+            ${e.citationDate ? `<span><i class="fa-regular fa-clock"></i> ${esc(/^\d\d:\d\d$/.test(e.citationTime || '') ? e.citationTime + ' hrs.' : (e.citationTime || DEFAULT_TIME + ' hrs.'))}</span>` : ''}
+            ${e.room ? `<span><i class="fa-solid fa-door-open"></i> ${esc(e.room)}</span>` : ''}
+            ${e.instrumentType ? `<span><i class="fa-solid fa-file-pen"></i> ${esc(e.instrumentType)}</span>` : ''}</div>
+          ${utp ? '<div class="notice utp" style="margin-top:8px;font-size:.8rem">Esta evaluación agotó las citaciones al hogar: la aplica la Unidad Técnica Pedagógica dentro del horario de clases. <b>No se enviará una nueva citación.</b></div>' : ''}
+        </div></div>`;
     };
+
+    const doneCard = e => {
+      const [c] = this.palette(e.subject);
+      return `<div class="dn-card" style="--c:${c}"><span class="dn-check"><i class="fa-solid fa-circle-check"></i></span>
+        <span class="pd-ic" style="background:${c}"><i class="fa-solid ${this.icon(e.subject)}"></i></span>
+        <div><b>${esc(e.subject)}</b><small>${esc(titleCase(e.teacher))}${e.completedDate || e.citationDate ? ' · rindió el ' + D.fmt(e.completedDate || e.citationDate) : ''}</small></div></div>`;
+    };
+    const otherCard = e => {
+      const m = { [ST.FAIL]: ['fa-circle-xmark', 'Cerrada con nota mínima', 'bad'], [ST.LIC]: ['fa-notes-medical', 'Cerrada por reposo médico', 'vio'], [ST.PLAN]: ['fa-clipboard-list', 'Plan de evaluación', 'vio'], [ST.EXCL]: ['fa-eye-slash', 'No se considera', 'vio'] }[e.status] || ['fa-circle-info', e.status, ''];
+      return `<div class="dn-card" style="--c:#7a45e5"><span class="dn-check" style="color:#7a45e5"><i class="fa-solid ${m[0]}"></i></span><span class="pd-ic" style="background:#7a45e5"><i class="fa-solid ${this.icon(e.subject)}"></i></span>
+        <div><b>${esc(e.subject)}</b><small>${esc(titleCase(e.teacher))}</small></div><span class="pill ${m[2]}" style="margin-left:auto">${m[1]}</span></div>`;
+    };
+
     const el = $('#portal');
-    el.innerHTML = `<div class="portal-box"><button class="btn sm" onclick="$('#portal').hidden=true"><i class="fa-solid fa-arrow-left"></i> Volver</button>
-      <div style="text-align:center;margin:18px 0;border-bottom:1px solid var(--line);padding-bottom:16px"><i class="fa-solid fa-graduation-cap" style="font-size:2.2rem;color:var(--brand)"></i><h2 style="justify-content:center;margin-top:8px">${esc(fmtName(s.name))}</h2><div class="muted">Curso: ${esc(s.course)}</div></div>
-      <h3><i class="fa-solid fa-list-check" style="color:var(--brand)"></i> Estado de evaluaciones</h3>
-      ${pend.length ? `<p class="muted">Ordenadas desde la fecha más próxima. Total: <b>${pend.length}</b>.</p>${pend.map(card).join('')}` : `<div class="notice ok" style="text-align:center;margin-top:12px"><b>${g} estudiante está al día.</b><br>No registra evaluaciones pendientes.</div>`}
-      ${done.length ? `<details style="margin-top:18px"><summary style="cursor:pointer;font-weight:700">Evaluaciones ya finalizadas (${done.length})</summary>${done.map(e => `<div class="pcard" style="--c:${e.status === ST.DONE ? '#22c55e' : '#7a45e5'}"><b>${esc(e.subject)}</b> <span class="pill ${e.status === ST.DONE ? 'ok' : 'vio'}">${esc(e.status)}</span><br><small>${esc(titleCase(e.teacher))}${e.citationDate ? ' · ' + D.fmt(e.citationDate) : ''}</small></div>`).join('')}</details>` : ''}</div>`;
-    el.hidden = false;
+    el.innerHTML = `<div class="portal-box">
+      <button class="btn sm" onclick="$('#portal').hidden=true"><i class="fa-solid fa-arrow-left"></i> Volver</button>
+      ${Brand.banner ? `<img class="pt-banner" src="${esc(Brand.banner)}" alt="Colegio Marina de Chile">` : ''}
+      <div class="pt-hero">
+        <div class="pt-av">${esc(ini)}</div>
+        <div><small>${hi}!</small><h2>${esc(fmtName(s.name))}</h2><span class="pill brand"><i class="fa-solid fa-graduation-cap"></i> Curso ${esc(s.course)}</span></div>
+      </div>
+      <div class="pt-stats">
+        <div class="pt-stat pend"><i class="fa-solid fa-hourglass-half"></i><b>${pend.length}</b><span>pendiente${pend.length === 1 ? '' : 's'}</span></div>
+        <div class="pt-stat done"><i class="fa-solid fa-circle-check"></i><b>${done.length}</b><span>rendida${done.length === 1 ? '' : 's'}</span></div>
+      </div>
+
+      <h3 class="pt-h"><i class="fa-solid fa-hourglass-half" style="color:var(--warn)"></i> Evaluaciones pendientes</h3>
+      ${pend.length ? `<p class="muted" style="margin:0 0 4px">Ordenadas desde la fecha más próxima.</p>${pend.map(pendCard).join('')}`
+        : `<div class="pt-empty"><i class="fa-solid fa-face-smile-beam"></i><b>¡Estás al día!</b><span>No tienes evaluaciones pendientes.</span></div>`}
+
+      <h3 class="pt-h" style="margin-top:26px"><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> Evaluaciones rendidas</h3>
+      ${done.length ? `<div class="dn-grid">${done.map(doneCard).join('')}</div>` : '<p class="muted">Aún no hay evaluaciones rendidas registradas.</p>'}
+      ${other.length ? `<h3 class="pt-h" style="margin-top:26px"><i class="fa-solid fa-folder-closed" style="color:var(--vio)"></i> Otras situaciones</h3><div class="dn-grid">${other.map(otherCard).join('')}</div>` : ''}
+    </div>`;
+    el.hidden = false; el.scrollTop = 0;
   }
 };
 
@@ -205,6 +263,7 @@ const Pwa = {
   }
 };
 document.addEventListener('DOMContentLoaded', () => Pwa.init());
+
 
 
 
