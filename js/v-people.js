@@ -36,9 +36,11 @@ const Ficha = {
         <div>${subjBadge(ev.subject)} <small>${esc(ev.instrumentType || '')}</small><div style="margin:6px 0;font-size:.88rem">${esc(ev.content || '')}</div></div>
         <div style="text-align:right"><span class="pill ${ev.status === ST.DONE ? 'ok' : ev.status === ST.PEND ? (b === 'utp' ? 'utp' : 'brand') : 'vio'}">${ev.status === ST.PEND ? (b === 'utp' ? 'En UTP' : attempt(ev) + 'ª citación') : esc(ev.status)}</span></div></div>
       <div style="font-size:.82rem;color:var(--muted)">Docente: ${esc(titleCase(ev.teacher))} · Inasistencia: ${D.fmt(ev.absenceDate)} · Citación: ${ev.citationDate ? D.long(ev.citationDate) + ' ' + esc(ev.citationTime || '') : 'sin fecha'}${ev.room ? ' · ' + esc(ev.room) : ''}${(ev.history || []).length ? ` · Inasistencias previas: ${ev.history.filter(h => /Inasist/.test(h.status)).map(h => D.fmt(h.date)).join(', ')}` : ''}</div>
+      ${ev.status === ST.EXCL ? `<div class="notice vio" style="margin-top:8px"><b>No se considera.</b> Motivo: ${esc(ev.excludedReason || '')}${ev.excludedNote ? '. ' + esc(ev.excludedNote) : ''}</div>` : ''}
       ${obs.map(o => `<div class="obs"><b>${D.fmt(String(o.date).slice(0, 10))}</b> ${o.by ? '· ' + esc(titleCase(o.by)) : ''}: ${esc(o.text)}</div>`).join('')}
       <div class="rowacts" style="margin-top:10px">
         <button class="btn sm" onclick="Ficha.addObs('${ev.id}')"><i class="fa-regular fa-comment-dots"></i> Observación</button>
+        ${adm && ev.status === ST.PEND ? `<button class="btn sm" onclick="Pending.excludeModal([DB.get('evaluations','${ev.id}')])"><i class="fa-solid fa-eye-slash"></i> No considerar</button>` : ''}
         ${adm ? `<button class="btn sm" onclick="Ficha.edit('${ev.id}')"><i class="fa-solid fa-pen"></i> Editar</button>
           ${ev.status !== ST.PEND ? `<button class="btn sm" onclick="Ficha.reopen('${ev.id}')"><i class="fa-solid fa-rotate-left"></i> Reabrir</button>` : ''}
           ${ev.status === ST.FAIL ? `<button class="btn sm" onclick="PDF.failLetter(DB.get('evaluations','${ev.id}'))"><i class="fa-solid fa-file-pdf"></i> Carta</button>` : ''}
@@ -221,7 +223,7 @@ const History = {
       <div class="page-head"><div><h1>Historial de evaluaciones</h1><p>Evaluaciones ya cerradas, separadas por resultado.</p></div>
         <div class="actions"><button class="btn" onclick="History.pdf()"><i class="fa-solid fa-file-pdf"></i> Descargar PDF</button></div></div>
       <div class="card toolbar">
-        <div class="field"><label>Resultado</label><select id="hf-status">${opts([['', 'Todas las evaluaciones'], [ST.DONE, 'Rendidas'], [ST.PEND, 'Pendientes (para avisar al docente)'], [ST.LIC, 'Cerradas por salud (reposo ≥ 15 días)'], [ST.PLAN, 'Plan de Evaluación'], [ST.FAIL, 'Nota mínima (1.0)']], this.f.status)}</select></div>
+        <div class="field"><label>Resultado</label><select id="hf-status">${opts([['', 'Todas las evaluaciones'], [ST.DONE, 'Rendidas'], [ST.PEND, 'Pendientes (para avisar al docente)'], [ST.LIC, 'Cerradas por salud (reposo ≥ 15 días)'], [ST.EXCL, 'No consideradas (con motivo)'], [ST.PLAN, 'Plan de Evaluación'], [ST.FAIL, 'Nota mínima (1.0)']], this.f.status)}</select></div>
         <div class="field"><label>Ciclo</label><select id="hf-cycle">${opts(CYCLES.map(c => c.name), this.f.cycle, 'Todos')}</select></div>
         <div class="field"><label>Curso</label><select id="hf-course"></select></div>
         <div class="field"><label>Docente</label><select id="hf-teacher"></select></div>
@@ -250,15 +252,15 @@ const History = {
   refresh() {
     const l = this.list().sort((a, b) => COURSES.indexOf(a.course) - COURSES.indexOf(b.course) || a.studentName.localeCompare(b.studentName, 'es'));
     const sc = {}; this.list(true).forEach(e => { sc[e.status] = (sc[e.status] || 0) + 1; });
-    const SL = [[ST.DONE, 'Rendidas', 'ok'], [ST.PEND, 'Pendientes', 'warn'], [ST.LIC, 'Cerradas por salud', 'vio'], [ST.PLAN, 'Plan de evaluación', 'vio'], [ST.FAIL, 'Nota mínima', 'bad']];
+    const SL = [[ST.DONE, 'Rendidas', 'ok'], [ST.PEND, 'Pendientes', 'warn'], [ST.LIC, 'Cerradas por salud', 'vio'], [ST.EXCL, 'No consideradas', 'vio'], [ST.PLAN, 'Plan de evaluación', 'vio'], [ST.FAIL, 'Nota mínima', 'bad']];
     const hs = $('#h-sum'); if (hs) hs.innerHTML = `<button class="pill ${this.f.status ? '' : 'brand'}" style="border:0;cursor:pointer;font-size:.8rem;padding:5px 12px" onclick="History.setStatus('')">Todas: ${Object.values(sc).reduce((a, b) => a + b, 0)}</button>` + SL.filter(s => sc[s[0]]).map(s => `<button class="pill ${s[2]}" style="border:0;cursor:pointer;font-size:.8rem;padding:5px 12px;${this.f.status === s[0] ? 'outline:2px solid var(--brand)' : ''}" onclick="History.setStatus('${s[0]}')">${s[1]}: ${sc[s[0]]}</button>`).join('');
     const ha = $('#h-all'); if (ha) ha.onchange = e => { l.forEach(x => e.target.checked ? this.sel.add(x.id) : this.sel.delete(x.id)); this.refresh(); };
     $('#h-body').innerHTML = l.slice(0, 500).map(e => `<tr class="${e.status === ST.DONE ? 'st-ok' : 'st-vio'}">
       <td>${Auth.isAdmin() ? `<input type="checkbox" ${this.sel.has(e.id) ? 'checked' : ''} onchange="History.toggle('${e.id}',this.checked)">` : ''}</td><td><b>${esc(fmtName(e.studentName))}</b><br><small>${esc(e.course)}</small></td>
-      <td>${subjBadge(e.subject)} ${this.f.status ? '' : `<span class="pill ${e.status === ST.DONE ? 'ok' : e.status === ST.PEND ? 'warn' : 'vio'}">${esc(e.status)}</span>`}<div style="font-size:.8rem;margin-top:4px">${esc(e.content || '')}</div></td><td>${esc(titleCase(e.teacher))}</td>
+      <td>${subjBadge(e.subject)} ${this.f.status ? '' : `<span class="pill ${e.status === ST.DONE ? 'ok' : e.status === ST.PEND ? 'warn' : 'vio'}">${esc(e.status)}</span>`}<div style="font-size:.8rem;margin-top:4px">${esc(e.content || '')}</div>${e.status === ST.EXCL ? `<div class="notice vio" style="margin-top:6px;padding:6px 10px;font-size:.78rem"><b>Motivo:</b> ${esc(e.excludedReason || '')}${e.excludedNote ? '. ' + esc(e.excludedNote) : ''}</div>` : ''}</td><td>${esc(titleCase(e.teacher))}</td>
       <td>${D.fmt(e.completedDate || e.citationDate)}</td>
       <td>${e.status !== ST.DONE ? '—' : Auth.isAdmin() ? `<label class="check"><input type="checkbox" ${e.returnedToTeacher ? 'checked' : ''} onchange="History.returned('${e.id}',this.checked)"> ${e.returnedToTeacher ? D.fmt(e.returnDate) : 'No'}</label>` : (e.returnedToTeacher ? 'Sí' : 'No')}</td>
-      <td><div class="rowacts"><button class="btn sm" onclick="Ficha.open('','${e.id}')"><i class="fa-solid fa-folder-open"></i></button>${Auth.isAdmin() && e.status !== ST.DONE && e.status !== ST.PEND ? `<button class="btn sm" onclick="History.reopen('${e.id}')"><i class="fa-solid fa-rotate-left"></i> Devolver al proceso</button>` : ''}</div></td></tr>`).join('')
+      <td><div class="rowacts"><button class="btn sm" onclick="Ficha.open('','${e.id}')"><i class="fa-solid fa-folder-open"></i></button>${Auth.isAdmin() && e.status !== ST.DONE && e.status !== ST.PEND ? `<button class="btn sm" onclick="History.reopen('${e.id}')"><i class="fa-solid fa-rotate-left"></i> ${e.status === ST.EXCL ? 'Volver a considerar' : 'Devolver al proceso'}</button>` : ''}</div></td></tr>`).join('')
       || `<tr><td colspan="7"><div class="empty"><i class="fa-regular fa-folder-open"></i>No hay evaluaciones en esta categoría.</div></td></tr>`;
     this.bulk();
   },
@@ -318,11 +320,11 @@ const History = {
     });
   },
   returned(id, on) { UI.busy(null, async () => { await DB.write([Act.op(id, { returnedToTeacher: on, returnDate: on ? D.today() : null, teacherNotifiedAt: null })]); this.refresh(); UI.toast(on ? 'Marcada como devuelta. Use «Avisar a docentes» para enviar el resumen.' : 'Devolución quitada.', 'success', 5000); }); },
-  reopen(id) { UI.busy(null, async () => { await Act.reopen(DB.get('evaluations', id)); UI.toast('Vuelve al proceso como pendiente.', 'success'); this.refresh(); }); },
+  reopen(id) { UI.busy(null, async () => { const ev = DB.get('evaluations', id); if (ev.status === ST.EXCL) await Act.restoreExcluded(ev); else await Act.reopen(ev); UI.toast('Vuelve al proceso como pendiente.', 'success'); this.refresh(); }); },
   pdf() {
     const l = this.list(); if (!l.length) return UI.toast('No hay datos para descargar.', 'error');
-    PDF.table(`EVALUACIONES: ${this.f.status.toUpperCase()}`, ['N°', 'Curso', 'Estudiante', 'Asignatura', 'Contenido', 'Docente', 'Fecha'],
-      l.sort((a, b) => COURSES.indexOf(a.course) - COURSES.indexOf(b.course) || a.studentName.localeCompare(b.studentName, 'es')).map((e, i) => [i + 1, e.course, fmtName(e.studentName), e.subject, e.content || '-', titleCase(e.teacher), D.fmt(e.completedDate || e.citationDate)]), 'download', `Historial_${D.today()}.pdf`);
+    PDF.table(`EVALUACIONES: ${(this.f.status || 'TODAS').toUpperCase()}`, ['N°', 'Curso', 'Estudiante', 'Asignatura', 'Contenido', 'Docente', 'Fecha', 'Estado / motivo'],
+      l.sort((a, b) => COURSES.indexOf(a.course) - COURSES.indexOf(b.course) || a.studentName.localeCompare(b.studentName, 'es')).map((e, i) => [i + 1, e.course, fmtName(e.studentName), e.subject, e.content || '-', titleCase(e.teacher), D.fmt(e.completedDate || e.citationDate), e.status === ST.EXCL ? 'NO considerar: ' + (e.excludedReason || '') + (e.excludedNote ? ' (' + e.excludedNote + ')' : '') : e.status]), 'download', `Historial_${D.today()}.pdf`);
   }
 };
 
@@ -408,6 +410,7 @@ const Rooms = {
     PDF.rooms(this.dist, $('#rm-cycle').value, $('#rm-date').value, $('#rm-order').value, 'print');
   }
 };
+
 
 
 

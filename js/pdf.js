@@ -44,6 +44,7 @@ const PDF = {
     evals.forEach(e => (by[e.course] = by[e.course] || []).push(e));
     Object.keys(by).sort((a, b) => COURSES.indexOf(a) - COURSES.indexOf(b)).forEach(c => {
       const l = by[c].sort((a, b) => a.studentName.localeCompare(b.studentName, 'es') || (a.subject || '').localeCompare(b.subject || '', 'es'));
+      if (body.length) body.push([{ content: '', colSpan: n, styles: { fillColor: [255, 255, 255], lineWidth: 0, minCellHeight: 11, cellPadding: 0 } }]);   // espacio en blanco entre cursos
       body.push([{ content: `CURSO ${c}  ·  ${new Set(l.map(e => e.studentName)).size} estudiante(s)  ·  ${l.length} evaluación(es)`, colSpan: n, styles: { fillColor: [232, 241, 251], textColor: [10, 79, 158], fontStyle: 'bold', fontSize: fontSize + 1, minCellHeight: 7 } }]);
       l.forEach((e, i) => body.push(rowFn(e, i)));
     });
@@ -196,6 +197,7 @@ const PDF = {
     doc.save(`Cierre_${ev.studentName.replace(/ /g, '_')}.pdf`);
   }
 };
+
 
 
 

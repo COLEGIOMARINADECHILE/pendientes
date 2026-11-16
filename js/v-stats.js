@@ -47,6 +47,7 @@ const Stats = {
   },
 
   compute() {
+    const f = this.f, excl = DB.evaluations.filter(e => !isWithdrawn(e) && e.status === ST.EXCL && (!f.cycle || cycleOf(e.course) === f.cycle) && (!f.course || e.course === f.course) && (!f.teacher || sameText(e.teacher, f.teacher))).length;
     const l = this.data(), total = l.length, done = l.filter(e => e.status === ST.DONE).length;
     const pend = l.filter(e => e.status === ST.PEND).length, fail = l.filter(e => e.status === ST.FAIL).length, ex = l.filter(this.exhausted).length;
     const byTeacher = this.agg(l, e => titleCase(e.teacher)).sort((a, b) => b.pend - a.pend);
@@ -55,7 +56,7 @@ const Stats = {
     const st = {};
     l.forEach(e => { const k = e.course + '||' + e.studentName, r = st[k] = st[k] || { name: e.studentName, course: e.course, pend: 0, total: 0, ex: 0, subj: [] }; r.total++; if (e.status === ST.PEND) r.pend++; if (Stats.exhausted(e)) { r.ex++; r.subj.push(e.subject); } });
     const students = Object.values(st);
-    return { l, total, done, pend, fail, ex, byTeacher, bySubject, byCourse,
+    return { excl, l, total, done, pend, fail, ex, byTeacher, bySubject, byCourse,
       topPend: students.filter(s => s.pend).sort((a, b) => b.pend - a.pend || a.name.localeCompare(b.name, 'es')).slice(0, 15),
       stuEx: students.filter(s => s.ex).sort((a, b) => b.ex - a.ex || a.name.localeCompare(b.name, 'es')), nStudents: students.length };
   },
@@ -66,7 +67,7 @@ const Stats = {
     const kpi = (n, l, c) => `<div class="kpi" style="--c:var(${c});cursor:default"><b>${n}</b><span>${l}</span></div>`;
     $('#st-out').innerHTML = `
       <div class="kpis">${kpi(s.total, 'Evaluaciones consideradas', '--brand')}${kpi(pct(s.done, s.total) + '%', 'Nivel de rendición', '--ok')}${kpi(s.pend, 'Pendientes', '--sun')}
-        ${kpi(s.ex + ' (' + pct(s.ex, s.total) + '%)', 'Sin rendir con oportunidades agotadas', '--utp')}${kpi(s.fail, 'Cerradas con nota 1.0', '--coral')}</div>
+        ${kpi(s.ex + ' (' + pct(s.ex, s.total) + '%)', 'Sin rendir con oportunidades agotadas', '--utp')}${kpi(s.fail, 'Cerradas con nota 1.0', '--coral')}${kpi(s.excl, 'No consideradas (excluidas)', '--vio')}</div>
       <div class="card"><h2><i class="fa-solid fa-chart-column"></i> Nivel de rendición por curso</h2><div style="margin-top:14px;display:grid;gap:8px">
         ${s.byCourse.map(r => `<div style="display:grid;grid-template-columns:100px 1fr 90px;gap:10px;align-items:center"><b>${esc(r.key)}</b>${this.bar(r.pct, r.pct >= 70 ? 'var(--leaf)' : r.pct >= 40 ? 'var(--sun)' : 'var(--coral)')}<small>${r.done}/${r.total} rendidas</small></div>`).join('') || '<span class="muted">Sin datos.</span>'}</div></div>
       ${this.table('Por docente', 'fa-person-chalkboard', s.byTeacher, 'Docente')}
@@ -94,5 +95,6 @@ const Stats = {
     doc.save(`Estadistica_${D.today()}.pdf`);
   }
 };
+
 
 

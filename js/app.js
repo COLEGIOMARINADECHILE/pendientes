@@ -36,6 +36,7 @@ const App = {
     set('#lg-logo', Brand.logo); set('#sd-logo', Brand.logo); set('#bn-img', Brand.banner);
     $('#lg-badges').innerHTML = (Brand.badges || []).map(b => `<img src="${esc(b)}" alt="Insignia">`).join('');
     $('#lg-icon').hidden = !!Brand.logo; $('#sd-icon').hidden = !!Brand.logo;
+    if (typeof Pwa !== 'undefined') Pwa.applyIcon();
   },
 
   async enter() {
@@ -171,6 +172,23 @@ const Pwa = {
     this.zoom(0);
     $$('[data-zoom]').forEach(b => b.onclick = () => this.zoom(+b.dataset.zoom));
   },
+  /** El ícono de la app instalada (PC, Android y iPhone) pasa a ser la insignia del colegio subida en Administración. */
+  async applyIcon() {
+    if (!Brand.logo || this.iconFor === Brand.logo) return;
+    this.iconFor = Brand.logo;
+    try {
+      const img = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = Brand.logo; });
+      const make = (size, pad) => { const c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0, 0, size, size); const box = size * (1 - pad * 2), r = Math.min(box / img.width, box / img.height), w = img.width * r, h = img.height * r; x.drawImage(img, (size - w) / 2, (size - h) / 2, w, h); return c.toDataURL('image/png'); };
+      const i192 = make(192, .1), i512 = make(512, .1), iMask = make(512, .22), i180 = make(180, .08);
+      $$('link[rel=icon], link[rel=apple-touch-icon]').forEach(l => l.remove());
+      document.head.insertAdjacentHTML('beforeend', `<link rel="icon" type="image/png" href="${i192}"><link rel="apple-touch-icon" href="${i180}">`);
+      const base = location.href.replace(/[^/]*$/, '').split('?')[0];
+      const man = { name: 'Evaluaciones Pendientes · Colegio Marina de Chile', short_name: 'Evaluaciones', start_url: base + 'index.html', scope: base, display: 'standalone', background_color: '#ffffff', theme_color: '#0f69c4', lang: 'es-CL',
+        icons: [{ src: i192, sizes: '192x192', type: 'image/png', purpose: 'any' }, { src: i512, sizes: '512x512', type: 'image/png', purpose: 'any' }, { src: iMask, sizes: '512x512', type: 'image/png', purpose: 'maskable' }] };
+      const link = document.querySelector('link[rel=manifest]');
+      if (link) link.href = URL.createObjectURL(new Blob([JSON.stringify(man)], { type: 'application/manifest+json' }));
+    } catch (e) { /* si falla, queda el ícono por defecto */ }
+  },
   show() { $$('[data-install]').forEach(b => b.hidden = false); },
   async install() {
     if (this.evt) { this.evt.prompt(); await this.evt.userChoice.catch(() => {}); this.evt = null; return; }
@@ -186,6 +204,7 @@ const Pwa = {
   }
 };
 document.addEventListener('DOMContentLoaded', () => Pwa.init());
+
 
 
 

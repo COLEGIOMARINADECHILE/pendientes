@@ -230,3 +230,6 @@ const staffGreeting = u => `${staffGender(u) === 'F' ? 'Estimada' : 'Estimado'} 
 
 /* Compara nombres sin tildes, mayúsculas ni espacios de más */
 const normP = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+
+ST.EXCL = 'No considerada';
+const EXCLUDE_REASONS = ['Reposo médico prolongado', 'Evaluación anulada por el docente', 'Error de registro', 'Registro duplicado', 'Estudiante con adecuación curricular / PIE', 'Estudiante retirado o trasladado', 'Otro motivo'];

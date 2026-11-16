@@ -12,6 +12,7 @@ const Delivery = {
   fill(g) {
     g.pend = DB.evaluations.filter(e => e.status === ST.PEND && normP(e.teacher) === normP(g.teacher) && !isWithdrawn(e))
       .sort((a, b) => a.course.localeCompare(b.course, 'es', { numeric: true }) || a.studentName.localeCompare(b.studentName, 'es'));
+    g.excl = DB.evaluations.filter(e => e.status === ST.EXCL && normP(e.teacher) === normP(g.teacher) && !isWithdrawn(e));
     const u = DB.users.find(x => sameText(x.name, g.teacher));
     g.email = (u && u.email) || '';
     g.done.sort((a, b) => a.course.localeCompare(b.course, 'es', { numeric: true }) || a.studentName.localeCompare(b.studentName, 'es'));
@@ -32,18 +33,30 @@ const Delivery = {
     const d = UI.modal({
       title: '<i class="fa-solid fa-box-open" style="color:var(--brand)"></i> Entrega de pruebas a los docentes', wide: true,
       body: `<div class="notice ok" style="margin-bottom:14px"><b>${total} prueba(s)</b> de <b>${gs.length} docente(s)</b> quedaron marcadas como rendidas y listas para devolver. ¿Desea avisarles por correo?</div>
-        <div class="table-wrap" style="max-height:52vh"><table class="tbl"><thead><tr><th>Docente</th><th>Pruebas que se le devuelven</th><th>Aún pendientes de rendir</th><th>Recibirá el correo en</th></tr></thead><tbody>
-        ${gs.map(g => `<tr><td><b>${esc(titleCase(g.teacher))}</b></td>
+        <div class="table-wrap" style="max-height:52vh"><table class="tbl"><thead><tr><th>Docente</th><th>Pruebas que se le devuelven</th><th>Aún pendientes de rendir</th><th>No considerar</th><th>Recibirá el correo en</th></tr></thead><tbody>
+        ${gs.map(g => `<tr><td><b>${esc(titleCase(g.teacher))}</b><br><button class="btn sm" style="margin-top:6px" data-prev="${gs.indexOf(g)}"><i class="fa-regular fa-eye"></i> Ver correo</button></td>
           <td><span class="pill ok">${g.done.length}</span><details><summary class="muted" style="cursor:pointer;font-size:.78rem">Ver de quiénes</summary>${this.listHtml(g.done)}</details></td>
           <td>${g.pend.length ? `<span class="pill warn">${g.pend.length}</span><details><summary class="muted" style="cursor:pointer;font-size:.78rem">Ver lista</summary>${this.listHtml(g.pend)}</details>` : '<span class="pill ok">Ninguna</span>'}</td>
+          <td>${g.excl.length ? `<span class="pill vio">${g.excl.length}</span><details><summary class="muted" style="cursor:pointer;font-size:.78rem">Ver motivos</summary><ul style="margin:6px 0 0;padding-left:18px;font-size:.8rem">${g.excl.map(e => `<li>${esc(fmtName(e.studentName))} <small>(${esc(e.subject)}): ${esc(e.excludedReason || '')}</small></li>`).join('')}</ul></details>` : '<span class="muted">—</span>'}</td>
           <td>${g.email ? `<i class="fa-regular fa-envelope"></i> ${esc(g.email)}` : '<span class="pill bad">Sin correo registrado</span><br><small>Agréguelo en Administración → Usuarios</small>'}</td></tr>`).join('')}
         </tbody></table></div>`,
       footer: `<button class="btn" data-no>No enviar</button><button class="btn" data-pdf><i class="fa-solid fa-file-pdf"></i> Fichas de entrega (PDF)</button>
         <button class="btn primary" data-send ${con.length ? '' : 'disabled'}><i class="fa-solid fa-paper-plane"></i> Enviar correo a ${con.length} docente(s)</button>`
     });
     $('[data-no]', d).onclick = () => d.close();
+    $$('[data-prev]', d).forEach(b => b.onclick = () => this.preview(gs[+b.dataset.prev].teacher, ids, b));
     $('[data-pdf]', d).onclick = () => PDF.delivery(gs);
     $('[data-send]', d).onclick = e => UI.busy(e.currentTarget, async () => { await this.send(ids, gs); d.close(); });
+  },
+
+  /** Muestra el correo EXACTO que recibirá el docente. */
+  preview(teacher, ids, btn) {
+    UI.busy(btn, async () => {
+      await DB.flush();
+      const r = await API.call('previewTeacher', { teacher, evalIds: ids });
+      const d = UI.modal({ title: `Así lo recibe ${esc(titleCase(teacher))}`, wide: true, body: '<iframe id="tp-frame" style="width:100%;height:66vh;border:1px solid var(--line);border-radius:12px;background:#fff"></iframe>' });
+      $('#tp-frame', d).srcdoc = r.html;
+    });
   },
 
   async send(ids, gs) {
@@ -66,12 +79,13 @@ const Delivery = {
       body: `<div class="notice" style="margin-bottom:12px">Cada docente recibe por correo el resumen de <b>todas sus evaluaciones</b>: rendidas, pendientes y otras situaciones, con su nivel de rendición.</div>
         <div class="table-wrap" style="max-height:52vh"><table class="tbl"><thead><tr><th>Docente</th><th>Rendidas</th><th>Pendientes</th><th>Otras</th><th>Correo</th><th></th></tr></thead><tbody>
         ${rows.map((r, i) => `<tr><td><b>${esc(titleCase(r.teacher))}</b></td><td><span class="pill ok">${r.done}</span></td><td><span class="pill warn">${r.pend}</span></td><td>${r.other}</td>
-          <td>${r.email ? esc(r.email) : '<span class="pill bad">Sin correo</span>'}</td><td>${r.email ? `<button class="btn sm" data-one="${i}"><i class="fa-solid fa-envelope"></i> Enviar</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`,
+          <td>${r.email ? esc(r.email) : '<span class="pill bad">Sin correo</span>'}</td><td style="white-space:nowrap"><button class="btn sm" data-prevh="${i}"><i class="fa-regular fa-eye"></i> Ver</button> ${r.email ? `<button class="btn sm" data-one="${i}"><i class="fa-solid fa-envelope"></i> Enviar</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`,
       footer: `<button class="btn" data-no>Cerrar</button><button class="btn primary" data-all ${con.length ? '' : 'disabled'}><i class="fa-solid fa-paper-plane"></i> Enviar a ${con.length} docente(s)</button>` });
     const run = async (names, btn) => UI.busy(btn, async () => { await DB.flush(); const r = await API.call('notifyTeachers', { kind: 'history', teachers: names }); if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info'); UI.modal({ title: 'Resultado del envío', body: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b></span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` }); });
     $('[data-no]', d).onclick = () => d.close();
     $('[data-all]', d).onclick = e => run(con.map(r => r.teacher), e.currentTarget);
     $$('[data-one]', d).forEach(b => b.onclick = e => run([rows[+b.dataset.one].teacher], e.currentTarget));
+    $$('[data-prevh]', d).forEach(b => b.onclick = () => this.preview(rows[+b.dataset.prevh].teacher, [], b));
   },
 
   /** Confirma a qué docentes se enviará su lista de pendientes y la envía. */
@@ -129,6 +143,12 @@ PDF.delivery = function (groups) {
         startY: y, margin: { left: PDF.M, right: PDF.M }, theme: 'grid', headStyles: { fillColor: [15, 105, 196], textColor: 255 }, styles: { fontSize: 8, cellPadding: 2 }, columnStyles: { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 18 } } });
       y = doc.lastAutoTable.finalY + 8;
     }
+    if (g.excl && g.excl.length) {
+      doc.autoTable({ head: [[{ content: `NO SE DEBEN CONSIDERAR (${g.excl.length})`, colSpan: 5, styles: { fillColor: [122, 69, 229] } }], ['N°', 'Curso', 'Estudiante', 'Asignatura', 'Motivo']],
+        body: g.excl.map((e, k) => [k + 1, e.course, fmtName(e.studentName), e.subject, (e.excludedReason || '') + (e.excludedNote ? ': ' + e.excludedNote : '')]),
+        startY: y, margin: { left: PDF.M, right: PDF.M }, theme: 'grid', headStyles: { fillColor: [15, 105, 196], textColor: 255 }, styles: { fontSize: 8, cellPadding: 2 }, columnStyles: { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 18 } } });
+      y = doc.lastAutoTable.finalY + 8;
+    }
     const H = doc.internal.pageSize.height, W = doc.internal.pageSize.width, fy = Math.max(y + 18, H - 40);
     if (fy > H - 14) doc.addPage();
     const sy = fy > H - 14 ? 40 : fy;
@@ -137,6 +157,7 @@ PDF.delivery = function (groups) {
   });
   doc.save(`Ficha_entrega_docentes_${D.today()}.pdf`);
 };
+
 
 
 

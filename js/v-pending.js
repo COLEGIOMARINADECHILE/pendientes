@@ -143,6 +143,7 @@ const Pending = {
                                  <button class="btn sm ib danger" title="No asistió: se reprograma sola" onclick="Pending.absent('${ev.id}',this)"><i class="fa-solid fa-xmark"></i></button>`;
     if (Auth.canContact()) acts += `<button class="btn sm ib ${ev.contacted ? '' : 'ghost'}" title="Marcar familia contactada" onclick="Pending.contact('${ev.id}',this)"><i class="fa-solid fa-phone"></i></button>`;
     acts += `<button class="btn sm ib" title="Ficha del estudiante" onclick="Ficha.open('${st ? st.id : ''}','${ev.id}')"><i class="fa-solid fa-folder-open"></i></button>`;
+    if (Auth.isAdmin()) acts += `<button class="btn sm ib" title="No considerar esta evaluación (indicando el motivo)" onclick="Pending.exclude('${ev.id}')"><i class="fa-solid fa-eye-slash"></i></button>`;
     if (Auth.isAdmin() && b === 'utp') acts += `<button class="btn sm ib" title="Cerrar con nota 1.0" onclick="Pending.fail('${ev.id}')"><i class="fa-solid fa-ban"></i></button>`;
 
     return `<tr id="r-${ev.id}" class="${cls}">
@@ -184,6 +185,28 @@ const Pending = {
     if (!await UI.confirm('Cerrar con nota mínima', `Se cerrará el proceso de <b>${esc(fmtName(ev.studentName))}</b> en ${esc(ev.subject)} con nota 1.0 y se generará la carta de resolución.`, 'Cerrar proceso', true)) return;
     await Act.closeFail(ev); PDF.failLetter(ev); this.refresh();
   },
+  exclude(id) { this.excludeModal([this.ev(id)]); },
+  bulkExclude() { this.excludeModal(this.selected()); },
+  async excludeModal(evs) {
+    evs = evs.filter(Boolean); if (!evs.length) return;
+    const v = await UI.form({ title: `No considerar ${evs.length} evaluación(es)`, ok: 'Marcar como no considerada',
+      intro: 'La evaluación sale de las listas de pendientes y de las estadísticas. Queda registrada con su motivo y esa información también se incluye en los correos y fichas del docente.',
+      fields: [{ name: 'reason', label: 'Motivo', type: 'select', full: true, options: EXCLUDE_REASONS.map(x => [x, x]) },
+        { name: 'note', label: 'Detalle (opcional)', type: 'textarea', full: true, placeholder: 'Ej. Reposo desde el 03/11 por 30 días.' },
+        { name: 'notify', label: 'Avisar ahora al docente por correo', type: 'check', value: true }] });
+    if (!v) return;
+    UI.busy(null, async () => {
+      const n = await Act.exclude(evs, v); this.sel.clear(); this.refresh();
+      UI.toast(` evaluación(es) marcada(s) como NO consideradas.`, 'success');
+      if (v.notify && n) {
+        await DB.flush();
+        const r = await API.call('notifyExcluded', { evalIds: evs.map(e => e.id) });
+        if (r.demo) UI.toast('Modo demo: no se envían correos.', 'info');
+        else UI.modal({ title: 'Aviso a los docentes', body: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b> · ${x.count} evaluación(es)</span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` });
+      }
+      if (Ficha.dlg && Ficha.dlg.open) Ficha.render();
+    });
+  },
   toggle(id, on) { on ? this.sel.add(id) : this.sel.delete(id); this.bulkBar(); },
 
   /* ---------- acciones en bloque ---------- */
@@ -195,6 +218,7 @@ const Pending = {
       ${adm ? `<button class="btn success" ${off} onclick="Pending.bulkDone(this)"><i class="fa-solid fa-check-double"></i> Marcar como RENDIDAS</button>
       <button class="btn danger" ${off} onclick="Pending.bulkAbsent(this)" title="Se reprograman solas al próximo día oficial"><i class="fa-solid fa-calendar-xmark"></i> Marcar como NO RENDIDAS y reprogramar</button>
       <span class="bb-sep"></span><input type="date" id="bk-date" min="${D.today()}" ${off}><input type="time" id="bk-time" ${off}>
+      <button class="btn" ${off} onclick="Pending.bulkExclude()" title="Sale de las listas y se informa al docente"><i class="fa-solid fa-eye-slash"></i> NO considerar…</button>
       <button class="btn sm" ${off} onclick="Pending.bulkMove(this)"><i class="fa-solid fa-calendar-check"></i> Aplicar fecha/hora</button>
       <button class="btn sm" ${off} onclick="Pending.bulkNext(this)"><i class="fa-solid fa-forward-step"></i> Próximo día oficial</button>` : ''}
       <button class="btn sm ghost" ${off} onclick="Pending.clearSel()">Limpiar</button>
@@ -250,6 +274,7 @@ const Pending = {
     else PDF.pending(evs, { text, scope }, v.mode);
   }
 };
+
 
 
 

@@ -160,7 +160,18 @@ const Act = {
     if (ops.length) await DB.write(ops);
     return ops.length;
   },
+  /** Marca evaluaciones como NO consideradas: salen de pendientes y estadísticas, con su motivo. */
+  async exclude(evs, { reason, note }) {
+    const now = new Date().toISOString(), ops = evs.filter(e => e.status !== ST.EXCL).map(ev => Act.withObs(ev, `NO SE CONSIDERA esta evaluación. Motivo: ${reason}${note ? '. ' + note : ''}.`, {
+      status: ST.EXCL, previousStatus: ev.status, excludedReason: reason, excludedNote: note || '', excludedAt: now, excludedBy: Act.who(), room: null, includeInCitation: false, needsUtpReschedule: false }));
+    if (ops.length) await DB.write(ops);
+    return ops.length;
+  },
+  async restoreExcluded(ev) {
+    await DB.write([Act.withObs(ev, 'Se restablece la evaluación: vuelve a considerarse.', { status: ev.previousStatus || ST.PEND, excludedReason: null, excludedNote: null, includeInCitation: true })]);
+  },
   async saveConfig(patch) { await DB.write([{ c: 'settings', op: 'update', id: 'config', data: patch }]); }
 };
+
 
 
