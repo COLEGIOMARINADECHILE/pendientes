@@ -4,11 +4,14 @@ const API = {
   user: JSON.parse(sessionStorage.getItem('ep_user') || 'null'),
   demo: !APP_CONFIG.API_URL,
 
+  /** Dirección pública de la plataforma, para que los correos incluyan el enlace. */
+  appUrl() { return location.protocol === 'https:' ? (location.origin + location.pathname).replace(/[^/]*$/, '') : ''; },
+
   async call(action, payload = {}) {
     if (this.demo) return Mock.call(action, payload, this.token);
     let res;
     try {
-      res = await fetch(APP_CONFIG.API_URL, { method: 'POST', body: JSON.stringify({ action, token: this.token, ...payload }) });
+      res = await fetch(APP_CONFIG.API_URL, { method: 'POST', body: JSON.stringify({ action, token: this.token, appUrl: this.appUrl(), ...payload }) });
     } catch (e) { throw new Error('No hay conexión con el servidor (Apps Script).'); }
     const j = await res.json().catch(() => ({ ok: false, error: 'Respuesta inválida del servidor.' }));
     if (!j.ok) {
@@ -181,4 +184,5 @@ const Mock = {
 
 
 window.addEventListener('beforeunload', e => { if (DB.pending > 0) { e.preventDefault(); e.returnValue = ''; } });
+
 

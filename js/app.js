@@ -126,40 +126,48 @@ const Portal = {
     return [['#3b82f6', '#eff6ff'], ['#8b5cf6', '#f5f3ff'], ['#ec4899', '#fdf2f8'], ['#f97316', '#fff7ed'], ['#06b6d4', '#ecfeff'], ['#22c55e', '#f0fdf4'], ['#ca8a04', '#fefce8'], ['#0ea5e9', '#f0f9ff']][Math.abs(h) % 8];
   },
 
+  /** Cuenta regresiva: un anillo que se llena a medida que se acerca la fecha. */
+  countdown(n, utp, resched) {
+    if (utp) return `<div class="pd-count utp"><div class="ring" style="--p:100"><i class="fa-solid fa-user-shield"></i></div><span>En UTP</span></div>`;
+    if (resched) return `<div class="pd-count sky"><div class="ring" style="--p:100"><i class="fa-solid fa-notes-medical"></i></div><span>Por reagendar</span></div>`;
+    if (n === null) return `<div class="pd-count"><div class="ring" style="--p:0"><i class="fa-solid fa-hourglass-half"></i></div><span>Por agendar</span></div>`;
+    const p = Math.max(8, Math.min(100, Math.round((1 - n / 14) * 100)));
+    if (n < 0) return `<div class="pd-count bad"><div class="ring" style="--p:100"><i class="fa-solid fa-triangle-exclamation"></i></div><span>Fecha pasada</span></div>`;
+    if (n === 0) return `<div class="pd-count bad pulse"><div class="ring" style="--p:100"><b>HOY</b><i class="fa-solid fa-bell"></i></div><span>¡Es hoy!</span></div>`;
+    if (n === 1) return `<div class="pd-count warn pulse"><div class="ring" style="--p:${p}"><b>1</b><small>día</small></div><span>¡Es mañana!</span></div>`;
+    return `<div class="pd-count ${n <= 7 ? 'warn' : 'ok'}"><div class="ring" style="--p:${p}"><b>${n}</b><small>días</small></div><span>Faltan</span></div>`;
+  },
+
   open(r) {
-    const s = r.student, hoy = D.today(), hi = s.gender === 'F' ? '¡Hola' : s.gender === 'M' ? '¡Hola' : '¡Hola';
+    const s = r.student, hoy = D.today();
     const isPend = e => e.status === ST.PEND || e.status === 'Licencia Médica';
     const pend = r.evals.filter(isPend).sort((a, b) => (a.citationDate || '9').localeCompare(b.citationDate || '9'));
     const done = r.evals.filter(e => e.status === ST.DONE).sort((a, b) => (b.completedDate || b.citationDate || '').localeCompare(a.completedDate || a.citationDate || ''));
     const other = r.evals.filter(e => !isPend(e) && e.status !== ST.DONE);
     const ini = String(s.name).trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    const proxima = pend.find(e => e.citationDate && e.citationDate >= hoy);
+    const nProx = proxima ? D.days(hoy, proxima.citationDate) - 1 : null;
 
     const pendCard = e => {
-      const [c, bg] = this.palette(e.subject), utp = isUtp(e), resched = isReschedule(e), lic = e.status === 'Licencia Médica';
-      let n = null, urg = 'ok', chip = '';
-      if (e.citationDate) n = D.days(hoy, e.citationDate) - 1;
-      if (utp) { urg = 'utp'; chip = '<span class="pill utp"><i class="fa-solid fa-user-shield"></i> En manos de UTP</span>'; }
-      else if (resched || lic) { urg = 'sky'; chip = '<span class="pill sky"><i class="fa-solid fa-notes-medical"></i> Reposo médico: se reagenda</span>'; }
-      else if (n === null) chip = '<span class="pill"><i class="fa-regular fa-calendar"></i> Por agendar</span>';
-      else if (n < 0) { urg = 'bad'; chip = '<span class="pill bad"><i class="fa-solid fa-triangle-exclamation"></i> Fecha pasada</span>'; }
-      else if (n === 0) { urg = 'bad'; chip = '<span class="pill bad"><i class="fa-solid fa-bell"></i> ¡Es hoy!</span>'; }
-      else if (n === 1) { urg = 'warn'; chip = '<span class="pill warn"><i class="fa-solid fa-bell"></i> Es mañana</span>'; }
-      else { urg = n <= 7 ? 'warn' : 'ok'; chip = `<span class="pill ${n <= 7 ? 'warn' : 'ok'}"><i class="fa-regular fa-clock"></i> En ${n} días</span>`; }
+      const [c, bg] = this.palette(e.subject), utp = isUtp(e), resched = isReschedule(e) || e.status === 'Licencia Médica';
+      const n = e.citationDate ? D.days(hoy, e.citationDate) - 1 : null;
       const d = e.citationDate ? D.parse(e.citationDate) : null;
+      const urg = utp ? 'utp' : resched ? 'sky' : n === null ? '' : n <= 0 ? 'bad' : n <= 7 ? 'warn' : 'ok';
       const block = d
         ? `<div class="pd-date ${urg}"><small>${WEEKDAYS[d.getDay()].slice(0, 3).toUpperCase()}</small><b>${d.getDate()}</b><small>${['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'][d.getMonth()]}</small></div>`
         : `<div class="pd-date ${urg}"><i class="fa-solid ${utp ? 'fa-user-shield' : 'fa-hourglass-half'}" style="font-size:1.6rem"></i><small>${utp ? 'UTP' : 'Sin fecha'}</small></div>`;
       return `<div class="pd-card" style="--c:${c};--bg:${bg}">
         ${block}
         <div class="pd-main">
-          <div class="pd-top"><span class="pd-ic"><i class="fa-solid ${this.icon(e.subject)}"></i></span><b>${esc(e.subject)}</b>${chip}</div>
+          <div class="pd-top"><span class="pd-ic"><i class="fa-solid ${this.icon(e.subject)}"></i></span><b>${esc(e.subject)}</b></div>
           <div class="pd-content">${esc(e.content || 'Sin contenido registrado')}</div>
           <div class="pd-meta"><span><i class="fa-solid fa-person-chalkboard"></i> ${esc(titleCase(e.teacher))}</span>
             ${e.citationDate ? `<span><i class="fa-regular fa-clock"></i> ${esc(/^\d\d:\d\d$/.test(e.citationTime || '') ? e.citationTime + ' hrs.' : (e.citationTime || DEFAULT_TIME + ' hrs.'))}</span>` : ''}
             ${e.room ? `<span><i class="fa-solid fa-door-open"></i> ${esc(e.room)}</span>` : ''}
             ${e.instrumentType ? `<span><i class="fa-solid fa-file-pen"></i> ${esc(e.instrumentType)}</span>` : ''}</div>
           ${utp ? '<div class="notice utp" style="margin-top:8px;font-size:.8rem">Esta evaluación agotó las citaciones al hogar: la aplica la Unidad Técnica Pedagógica dentro del horario de clases. <b>No se enviará una nueva citación.</b></div>' : ''}
-        </div></div>`;
+        </div>
+        ${this.countdown(n, utp, resched)}</div>`;
     };
 
     const doneCard = e => {
@@ -175,26 +183,30 @@ const Portal = {
     };
 
     const el = $('#portal');
-    el.innerHTML = `<div class="portal-box">
-      <button class="btn sm" onclick="$('#portal').hidden=true"><i class="fa-solid fa-arrow-left"></i> Volver</button>
-      ${Brand.banner ? `<img class="pt-banner" src="${esc(Brand.banner)}" alt="Colegio Marina de Chile">` : ''}
-      <div class="pt-hero">
-        <div class="pt-av">${esc(ini)}</div>
-        <div><small>${hi}!</small><h2>${esc(fmtName(s.name))}</h2><span class="pill brand"><i class="fa-solid fa-graduation-cap"></i> Curso ${esc(s.course)}</span></div>
-      </div>
-      <div class="pt-stats">
-        <div class="pt-stat pend"><i class="fa-solid fa-hourglass-half"></i><b>${pend.length}</b><span>pendiente${pend.length === 1 ? '' : 's'}</span></div>
-        <div class="pt-stat done"><i class="fa-solid fa-circle-check"></i><b>${done.length}</b><span>rendida${done.length === 1 ? '' : 's'}</span></div>
-      </div>
-
-      <h3 class="pt-h"><i class="fa-solid fa-hourglass-half" style="color:var(--warn)"></i> Evaluaciones pendientes</h3>
-      ${pend.length ? `<p class="muted" style="margin:0 0 4px">Ordenadas desde la fecha más próxima.</p>${pend.map(pendCard).join('')}`
-        : `<div class="pt-empty"><i class="fa-solid fa-face-smile-beam"></i><b>¡Estás al día!</b><span>No tienes evaluaciones pendientes.</span></div>`}
-
-      <h3 class="pt-h" style="margin-top:26px"><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> Evaluaciones rendidas</h3>
-      ${done.length ? `<div class="dn-grid">${done.map(doneCard).join('')}</div>` : '<p class="muted">Aún no hay evaluaciones rendidas registradas.</p>'}
-      ${other.length ? `<h3 class="pt-h" style="margin-top:26px"><i class="fa-solid fa-folder-closed" style="color:var(--vio)"></i> Otras situaciones</h3><div class="dn-grid">${other.map(otherCard).join('')}</div>` : ''}
-    </div>`;
+    el.innerHTML = `<div class="portal-box wide">
+      <div class="pt-layout">
+        <aside class="pt-side">
+          <button class="btn sm" onclick="$('#portal').hidden=true"><i class="fa-solid fa-arrow-left"></i> Volver</button>
+          ${Brand.banner ? `<img class="pt-banner" src="${esc(Brand.banner)}" alt="Colegio Marina de Chile">` : ''}
+          <div class="pt-hero">
+            <div class="pt-av">${esc(ini)}</div>
+            <div><small>¡Hola!</small><h2>${esc(fmtName(s.name))}</h2><span class="pill brand"><i class="fa-solid fa-graduation-cap"></i> Curso ${esc(s.course)}</span></div>
+          </div>
+          <div class="pt-stats">
+            <div class="pt-stat pend"><i class="fa-solid fa-hourglass-half"></i><b>${pend.length}</b><span>pendiente${pend.length === 1 ? '' : 's'}</span></div>
+            <div class="pt-stat done"><i class="fa-solid fa-circle-check"></i><b>${done.length}</b><span>rendida${done.length === 1 ? '' : 's'}</span></div>
+          </div>
+          ${proxima ? `<div class="pt-next"><i class="fa-solid fa-rocket"></i><div><small>Tu próxima evaluación</small><b>${esc(proxima.subject)}</b><span>${nProx === 0 ? '¡Es hoy!' : nProx === 1 ? '¡Es mañana!' : `Faltan <b>${nProx}</b> días`} · ${D.long(proxima.citationDate)}</span></div></div>` : ''}
+        </aside>
+        <section class="pt-content">
+          <h3 class="pt-h"><i class="fa-solid fa-hourglass-half" style="color:var(--warn)"></i> Evaluaciones pendientes</h3>
+          ${pend.length ? `<p class="muted" style="margin:0 0 4px">Ordenadas desde la fecha más próxima.</p>${pend.map(pendCard).join('')}`
+            : `<div class="pt-empty"><i class="fa-solid fa-face-smile-beam"></i><b>¡Estás al día!</b><span>No tienes evaluaciones pendientes.</span></div>`}
+          <h3 class="pt-h" style="margin-top:26px"><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> Evaluaciones rendidas</h3>
+          ${done.length ? `<div class="dn-grid">${done.map(doneCard).join('')}</div>` : '<p class="muted">Aún no hay evaluaciones rendidas registradas.</p>'}
+          ${other.length ? `<h3 class="pt-h" style="margin-top:26px"><i class="fa-solid fa-folder-closed" style="color:var(--vio)"></i> Otras situaciones</h3><div class="dn-grid">${other.map(otherCard).join('')}</div>` : ''}
+        </section>
+      </div></div>`;
     el.hidden = false; el.scrollTop = 0;
   }
 };
@@ -263,6 +275,7 @@ const Pwa = {
   }
 };
 document.addEventListener('DOMContentLoaded', () => Pwa.init());
+
 
 
 
