@@ -1,4 +1,4 @@
-/* ===== Reglas de negocio puras: fechas, ciclos, disponibilidad, licencias, salas ===== */
+﻿/* ===== Reglas de negocio puras: fechas, ciclos, disponibilidad, licencias, salas ===== */
 const CYCLES = [
   { name: 'Primer Ciclo', courses: ['1° A', '1° B', '2° A', '2° B', '3° A', '3° B', '4° A', '4° B'] },
   { name: 'Segundo Ciclo', courses: ['5° A', '5° B', '6° A', '6° B', '7° A', '7° B', '8° A', '8° B'] },
@@ -209,7 +209,10 @@ const groupByCycleCourse = evals => {
   return CYCLES.filter(c => g[c.name]).map(c => ({ cycle: c.name, courses: c.courses.filter(x => g[c.name][x]).map(x => ({ course: x, list: g[c.name][x] })) }));
 };
 
-/* Correo institucional del estudiante: RUT sin puntos y con gui�n + @andaliensur.cl (editable) */
+/* Correo institucional del estudiante: RUT sin puntos y con gui�n + @andaliensur.cl (editable) */
 const MAIL_DOMAIN = '@andaliensur.cl';
-const autoEmail = rut => { const r = normRut(rut); return /^\d{7,9}-[\dK]$/.test(r) ? r.toLowerCase() + MAIL_DOMAIN : ''; };
+const autoEmail = rut => { const m = normRut(rut).match(/^(\d{7,9})-?([\dK])$/); return m ? m[1] + '-' + m[2].toLowerCase() + MAIL_DOMAIN : ''; };
+/* Funcionarios: solo se escribe lo anterior a la @ */
+const staffLocal = e => String(e || '').split('@')[0].trim().toLowerCase();
 const studentEmail = st => (st && ((st.email || '').trim() || autoEmail(st.rut))) || '';
+

@@ -123,7 +123,7 @@ const Mock = {
   },
   run(action, p, token) {
     const d = this.load();
-    const pub = u => ({ id: u.id, name: u.name, role: u.role, assignments: u.assignments || [], headTeacherOf: u.headTeacherOf || null, mainLevel: u.mainLevel || null });
+    const pub = u => ({ id: u.id, name: u.name, role: u.role, assignments: u.assignments || [], headTeacherOf: u.headTeacherOf || null, mainLevel: u.mainLevel || null, email: u.email || '' });
     const me = () => { const u = d.users.find(x => 'mock-' + x.id === token); if (!u) throw new Error('Sesión expirada.'); return u; };
     switch (action) {
       case 'publicUsers': return { users: d.users.map(u => ({ id: u.id, name: u.name, role: u.role, mainLevel: u.mainLevel || null })) };
@@ -151,6 +151,7 @@ const Mock = {
         this.save(d); return { users: d.users.map(pub) };
       }
       case 'deleteUser': d.users = d.users.filter(x => x.id !== p.id); this.save(d); return { users: d.users.map(pub) };
+      case 'notifyTeachers': me(); return { results: [], demo: true };
       case 'notify': me(); return { sent: 0, noMail: 0, demo: true };
       case 'changePassword': me().password = p.password; this.save(d); return {};
       case 'saveBranding': Object.assign(d.branding, p.banner ? { banner: p.banner } : {}, p.logo ? { logo: p.logo } : {}, p.badges ? { badges: p.badges } : {}); this.save(d); return {};
@@ -163,4 +164,5 @@ const Mock = {
     }
   }
 };
+
 

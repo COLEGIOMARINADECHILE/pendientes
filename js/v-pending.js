@@ -49,12 +49,13 @@ const Pending = {
         <div class="field"><label>Agrupar por</label><select id="pf-group">${opts([['curso', 'Ciclo y curso'], ['docente', 'Docente'], ['fecha', 'Fecha de citación']], this.f.group)}</select></div>
         <div class="field" style="grid-column:span 2"><label>Buscar</label><input id="pf-q" placeholder="Estudiante, asignatura, contenido…" value="${esc(this.f.q)}"></div>
       </div>
-      <div class="card table-card"><div class="table-wrap"><table class="tbl">
+      <div id="p-bulk"></div>
+      <div class="card table-card"><div class="table-wrap"><table class="tbl fixed">
+        <colgroup><col style="width:38px"><col style="width:14%"><col style="width:25%"><col style="width:11%"><col style="width:23%"><col style="width:12%"><col></colgroup>
         <thead><tr>
-          <th style="width:36px">${ro ? '' : '<input type="checkbox" id="p-all" title="Seleccionar lo que se ve">'}</th>
-          <th>Estudiante</th><th style="min-width:230px">Evaluación</th><th>Docente</th><th style="min-width:300px">Fecha y hora de citación</th><th>Estado</th><th>Acciones</th>
-        </tr></thead><tbody id="p-body"></tbody></table></div></div>
-      <div id="p-bulk"></div>`;
+          <th>${ro ? '' : '<input type="checkbox" id="p-all" title="Seleccionar todo lo que se ve">'}</th>
+          <th>Estudiante</th><th>Evaluación</th><th>Docente</th><th>Fecha y hora de citación</th><th>Estado</th><th>Acciones</th>
+        </tr></thead><tbody id="p-body"></tbody></table></div></div>`;
     this.fillFilters();
     const on = (id, fn) => { const x = $('#' + id); x.addEventListener(x.tagName === 'INPUT' ? 'input' : 'change', fn); };
     on('pf-cycle', e => { this.f.cycle = e.target.value; this.f.course = ''; this.fillFilters(); this.refresh(); });
@@ -90,19 +91,19 @@ const Pending = {
   setTab(t) { this.tab = t; this.refresh(); },
 
   groups(list) {
-    const hd = (t, n, l1) => `<tr class="grp ${l1 ? 'l1' : ''}"><td colspan="7">${t}<small>${n} evaluación(es)</small></td></tr>`;
+    const hd = (t, n, l1, ids) => `<tr class="grp ${l1 ? 'l1' : ''}"><td colspan="7">${ids && !Auth.readOnly() ? `<input type="checkbox" title="Seleccionar este grupo" style="margin-right:10px" onchange="Pending.selGroup('${ids.join(',')}',this.checked)">` : ''}${t}<small>${n} evaluación(es)</small></td></tr>`;
     const byStudent = (a, b) => a.studentName.localeCompare(b.studentName, 'es') || (a.subject || '').localeCompare(b.subject || '', 'es');
     let html = '';
     if (this.f.group === 'docente') {
       const g = {}; list.forEach(e => (g[e.teacher || 'SIN DOCENTE'] = g[e.teacher || 'SIN DOCENTE'] || []).push(e));
-      Object.keys(g).sort((a, b) => a.localeCompare(b, 'es')).forEach(t => { html += hd(`<i class="fa-solid fa-person-chalkboard"></i> ${esc(titleCase(t))}`, g[t].length, 1) + g[t].sort((a, b) => a.course.localeCompare(b.course, 'es', { numeric: true }) || byStudent(a, b)).map(e => this.row(e)).join(''); });
+      Object.keys(g).sort((a, b) => a.localeCompare(b, 'es')).forEach(t => { html += hd(`<i class="fa-solid fa-person-chalkboard"></i> ${esc(titleCase(t))}`, g[t].length, 1, g[t].map(e => e.id)) + g[t].sort((a, b) => a.course.localeCompare(b.course, 'es', { numeric: true }) || byStudent(a, b)).map(e => this.row(e)).join(''); });
     } else if (this.f.group === 'fecha') {
       const g = {}; list.forEach(e => (g[e.citationDate || '9999'] = g[e.citationDate || '9999'] || []).push(e));
-      Object.keys(g).sort().forEach(d => { html += hd(d === '9999' ? '<i class="fa-regular fa-calendar-xmark"></i> Sin fecha asignada' : `<i class="fa-regular fa-calendar"></i> ${D.long(d)}`, g[d].length, 1) + g[d].sort((a, b) => a.course.localeCompare(b.course, 'es', { numeric: true }) || byStudent(a, b)).map(e => this.row(e)).join(''); });
+      Object.keys(g).sort().forEach(d => { html += hd(d === '9999' ? '<i class="fa-regular fa-calendar-xmark"></i> Sin fecha asignada' : `<i class="fa-regular fa-calendar"></i> ${D.long(d)}`, g[d].length, 1, g[d].map(e => e.id)) + g[d].sort((a, b) => a.course.localeCompare(b.course, 'es', { numeric: true }) || byStudent(a, b)).map(e => this.row(e)).join(''); });
     } else {
       groupByCycleCourse(list).forEach(g => {
-        html += hd(`<i class="fa-solid fa-layer-group"></i> ${g.cycle}`, g.courses.reduce((n, c) => n + c.list.length, 0), 1);
-        g.courses.forEach(c => { html += hd(`Curso ${c.course}`, c.list.length) + c.list.sort(byStudent).map(e => this.row(e)).join(''); });
+        html += hd(`<i class="fa-solid fa-layer-group"></i> ${g.cycle}`, g.courses.reduce((n, c) => n + c.list.length, 0), 1, g.courses.flatMap(c => c.list.map(e => e.id)));
+        g.courses.forEach(c => { html += hd(`Curso ${c.course}`, c.list.length, 0, c.list.map(e => e.id)) + c.list.sort(byStudent).map(e => this.row(e)).join(''); });
       });
     }
     return html;
@@ -138,11 +139,11 @@ const Pending = {
     if (ev.contacted) tags.push('<span class="pill ok"><i class="fa-solid fa-phone"></i> Contactada</span>');
 
     let acts = '';
-    if (Auth.isAdmin()) acts += `<button class="btn sm success" title="Rindió la evaluación" onclick="Pending.done('${ev.id}',this)"><i class="fa-solid fa-check"></i> Rendida</button>
-                                 <button class="btn sm danger" title="No asistió" onclick="Pending.absent('${ev.id}',this)"><i class="fa-solid fa-xmark"></i> No asistió</button>`;
-    if (Auth.canContact()) acts += `<button class="btn sm ${ev.contacted ? '' : 'ghost'}" title="Marcar familia contactada" onclick="Pending.contact('${ev.id}',this)"><i class="fa-solid fa-phone"></i></button>`;
-    acts += `<button class="btn sm" title="Ficha del estudiante" onclick="Ficha.open('${st ? st.id : ''}','${ev.id}')"><i class="fa-solid fa-folder-open"></i></button>`;
-    if (Auth.isAdmin() && b === 'utp') acts += `<button class="btn sm" title="Cerrar con nota 1.0" onclick="Pending.fail('${ev.id}')"><i class="fa-solid fa-ban"></i></button>`;
+    if (Auth.isAdmin()) acts += `<button class="btn sm ib success" title="Rindió la evaluación" onclick="Pending.done('${ev.id}',this)"><i class="fa-solid fa-check"></i></button>
+                                 <button class="btn sm ib danger" title="No asistió: se reprograma sola" onclick="Pending.absent('${ev.id}',this)"><i class="fa-solid fa-xmark"></i></button>`;
+    if (Auth.canContact()) acts += `<button class="btn sm ib ${ev.contacted ? '' : 'ghost'}" title="Marcar familia contactada" onclick="Pending.contact('${ev.id}',this)"><i class="fa-solid fa-phone"></i></button>`;
+    acts += `<button class="btn sm ib" title="Ficha del estudiante" onclick="Ficha.open('${st ? st.id : ''}','${ev.id}')"><i class="fa-solid fa-folder-open"></i></button>`;
+    if (Auth.isAdmin() && b === 'utp') acts += `<button class="btn sm ib" title="Cerrar con nota 1.0" onclick="Pending.fail('${ev.id}')"><i class="fa-solid fa-ban"></i></button>`;
 
     return `<tr id="r-${ev.id}" class="${cls}">
       <td>${ro ? '' : `<input type="checkbox" ${this.sel.has(ev.id) ? 'checked' : ''} onchange="Pending.toggle('${ev.id}',this.checked)">`}</td>
@@ -188,16 +189,18 @@ const Pending = {
   /* ---------- acciones en bloque ---------- */
   bulkBar() {
     const box = $('#p-bulk'), n = this.sel.size;
-    if (!n || Auth.readOnly()) { box.innerHTML = ''; return; }
-    const canSch = Auth.canSchedule();
-    box.innerHTML = `<div class="bulk"><b>${n} seleccionada(s)</b>
-      ${canSch ? `<input type="date" id="bk-date" min="${D.today()}"><input type="time" id="bk-time"><button class="btn sm" onclick="Pending.bulkMove(this)"><i class="fa-solid fa-calendar-check"></i> Aplicar fecha/hora</button>
-      <button class="btn sm" onclick="Pending.bulkNext(this)"><i class="fa-solid fa-forward-step"></i> Próximo día oficial</button>
-      <button class="btn sm success" onclick="Pending.bulkDone(this)"><i class="fa-solid fa-check"></i> Rendidas</button>
-      <button class="btn sm danger solid" onclick="Pending.bulkAbsent(this)"><i class="fa-solid fa-xmark"></i> No asistieron</button>` : ''}
-      <button class="btn sm ghost" style="color:#cbd5e1" onclick="Pending.clearSel()">Limpiar</button></div>`;
+    if (Auth.readOnly()) { box.innerHTML = ''; return; }
+    const adm = Auth.canSchedule(), off = n ? '' : 'disabled';
+    box.innerHTML = `<div class="bulkbar"><div class="bb-count"><b>${n}</b><span>seleccionada(s)</span></div>
+      ${adm ? `<button class="btn success" ${off} onclick="Pending.bulkDone(this)"><i class="fa-solid fa-check-double"></i> Marcar como RENDIDAS</button>
+      <button class="btn danger" ${off} onclick="Pending.bulkAbsent(this)" title="Se reprograman solas al próximo día oficial"><i class="fa-solid fa-calendar-xmark"></i> Marcar como NO RENDIDAS y reprogramar</button>
+      <span class="bb-sep"></span><input type="date" id="bk-date" min="${D.today()}" ${off}><input type="time" id="bk-time" ${off}>
+      <button class="btn sm" ${off} onclick="Pending.bulkMove(this)"><i class="fa-solid fa-calendar-check"></i> Aplicar fecha/hora</button>
+      <button class="btn sm" ${off} onclick="Pending.bulkNext(this)"><i class="fa-solid fa-forward-step"></i> Próximo día oficial</button>` : ''}
+      <button class="btn sm ghost" ${off} onclick="Pending.clearSel()">Limpiar</button>
+      <div class="bb-help">Marque las casillas (o el grupo completo) y use los botones. <b>✓</b> rindió · <b>✗</b> no asistió (se reprograma sola) · <i class="fa-solid fa-phone"></i> familia contactada · <i class="fa-solid fa-folder-open"></i> ficha.</div></div>`;
   },
-  clearSel() { this.sel.clear(); this.refresh(); },
+  selGroup(ids, on) { ids.split(',').forEach(id => on ? this.sel.add(id) : this.sel.delete(id)); this.refresh(); },  clearSel() { this.sel.clear(); this.refresh(); },
   selected() { return [...this.sel].map(id => this.ev(id)).filter(Boolean); },
   async eachMove(evs, fn) {
     let ok = 0; const bad = [];
@@ -246,4 +249,6 @@ const Pending = {
     else PDF.pending(evs, { text, scope }, v.mode);
   }
 };
+
+
 

@@ -1,4 +1,4 @@
-/* ===== Vista "Registrar evaluación": un único formulario para uno o varios estudiantes ===== */
+﻿/* ===== Vista "Registrar evaluación": un único formulario para uno o varios estudiantes ===== */
 const Register = {
   names: [],
 
@@ -6,11 +6,10 @@ const Register = {
     this.names = [];
     const doc = Auth.role === 'docente';
     el.innerHTML = `
-      <div class="page-head"><div><h1>${doc ? 'Ingresa tus evaluaciones pendientes' : 'Registrar evaluación pendiente'}</h1>
-        <p>Una evaluación, uno o varios estudiantes. El sistema asigna el día oficial y avisa de cualquier situación especial antes de guardar.</p></div></div>
+      <div class="hero"><div class="hero-ic"><i class="fa-solid fa-file-circle-plus"></i></div><div><h1>${doc ? 'Ingresa tus evaluaciones pendientes' : 'Registrar evaluación pendiente'}</h1><p>Un solo formulario para uno o varios estudiantes. El sistema asigna el día oficial, avisa de cualquier situación especial y <b>envía el aviso por correo</b> al estudiante.</p></div></div>
       ${doc ? `<div class="notice" style="margin-bottom:16px"><i class="fa-solid fa-circle-info"></i> Solo verá los ciclos, cursos y asignaturas que tiene asignados; usted queda como docente responsable.</div>` : ''}
       <form id="rg" class="stack">
-        <div class="card"><h2><i class="fa-solid fa-book-open"></i> 1. Curso y evaluación</h2>
+        <div class="card stepcard"><div class="step"><span class="n" style="--c:var(--brand)">1</span><div><h2>Curso y evaluación</h2><small>¿Qué prueba y de qué curso?</small></div></div>
           <div class="fgrid" style="margin-top:14px">
             <div class="field"><label>Ciclo</label><select id="rg-cycle" required></select></div>
             <div class="field"><label>Curso</label><select id="rg-course" required><option value="">Primero elija el ciclo</option></select></div>
@@ -21,7 +20,7 @@ const Register = {
             <div class="field full"><label>Contenido de la evaluación</label><textarea id="rg-content" required placeholder="Describa el contenido o tema evaluado…"></textarea></div>
           </div></div>
 
-        <div class="card"><h2><i class="fa-solid fa-users"></i> 2. Estudiantes</h2>
+        <div class="card stepcard"><div class="step"><span class="n" style="--c:var(--coral)">2</span><div><h2>Estudiantes</h2><small>Agregue uno, varios o todo el curso.</small></div></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0">
             <select id="rg-pick" style="flex:1;min-width:240px"><option value="">Elija primero el curso</option></select>
             <button type="button" class="btn" id="rg-add-all"><i class="fa-solid fa-users-line"></i> Todo el curso</button>
@@ -29,7 +28,7 @@ const Register = {
           </div>
           <ul class="list" id="rg-list"></ul><small id="rg-count"></small></div>
 
-        <div class="card"><h2><i class="fa-regular fa-calendar-check"></i> 3. Citación</h2>
+        <div class="card stepcard"><div class="step"><span class="n" style="--c:var(--leaf)">3</span><div><h2>Citación</h2><small>Fecha, hora y sala de rendición.</small></div></div>
           <div class="fgrid" style="margin-top:14px">
             <div class="field"><label>Fecha de la 2ª citación</label><input type="date" id="rg-date"><small id="rg-hint"></small></div>
             <div class="field"><label>Horario</label><select id="rg-time"></select></div>
@@ -257,3 +256,4 @@ const Register = {
     this.mount($('#view'));
   }
 };
+

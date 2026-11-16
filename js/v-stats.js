@@ -1,6 +1,6 @@
-/* ===== Estadística: rendición por docente, asignatura, curso y estudiantes críticos ===== */
+﻿/* ===== Estadística: rendición por docente, asignatura, curso y estudiantes críticos ===== */
 const Stats = {
-  f: { cycle: '', course: '' },
+  f: { cycle: '', course: '', teacher: '' },
 
   mount(el) {
     el.innerHTML = `
@@ -9,19 +9,21 @@ const Stats = {
       <div class="card toolbar">
         <div class="field"><label>Ciclo</label><select id="st-cycle">${opts(CYCLES.map(c => c.name), this.f.cycle, 'Todos')}</select></div>
         <div class="field"><label>Curso</label><select id="st-course"></select></div>
+        <div class="field"><label>Docente</label><select id="st-teacher">${opts([...new Set(DB.evaluations.map(e => e.teacher).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')).map(t => [t, titleCase(t)]), this.f.teacher, 'Todos')}</select></div>
       </div>
       <div id="st-out" class="stack"></div>`;
     const fill = () => { const cs = this.f.cycle ? CYCLES.find(c => c.name === this.f.cycle).courses : COURSES; $('#st-course').innerHTML = opts(cs, this.f.course, 'Todos'); };
     fill();
     $('#st-cycle').onchange = e => { this.f.cycle = e.target.value; this.f.course = ''; fill(); this.refresh(); };
     $('#st-course').onchange = e => { this.f.course = e.target.value; this.refresh(); };
+    $('#st-teacher').onchange = e => { this.f.teacher = e.target.value; this.refresh(); };
     this.refresh();
   },
 
   /* Evaluaciones que cuentan para el proceso (se excluyen cerradas por salud y plan) */
   data() {
     const f = this.f;
-    return DB.evaluations.filter(e => !isWithdrawn(e) && [ST.DONE, ST.PEND, ST.FAIL].includes(e.status) && (!f.cycle || cycleOf(e.course) === f.cycle) && (!f.course || e.course === f.course));
+    return DB.evaluations.filter(e => !isWithdrawn(e) && [ST.DONE, ST.PEND, ST.FAIL].includes(e.status) && (!f.cycle || cycleOf(e.course) === f.cycle) && (!f.course || e.course === f.course) && (!f.teacher || sameText(e.teacher, f.teacher)));
   },
   exhausted: e => e.status === ST.FAIL || isUtp(e),
 
@@ -81,6 +83,7 @@ const Stats = {
   pdf() {
     const s = this.last || this.compute(), doc = PDF.doc('landscape');
     PDF.header(doc, 'ESTADÍSTICA DE EVALUACIONES PENDIENTES', this.f.course || this.f.cycle || null);
+    if (this.f.teacher) doc.text(`Docente: ${titleCase(this.f.teacher)}`, PDF.M, 47);
     doc.text(`${this.f.course || this.f.cycle || 'Todos los ciclos'}  |  Consideradas: ${s.total}  |  Rendición: ${s.total ? Math.round(s.done * 100 / s.total) : 0}%  |  Oportunidades agotadas: ${s.ex}  |  Emitido: ${D.fmt(D.today())}`, PDF.M, 50);
     let y = 55;
     const t = (title, head, rows) => { doc.autoTable({ head: [[{ content: title, colSpan: head.length, styles: { fillColor: [10, 79, 158] } }], head], body: rows, startY: y, margin: { left: PDF.M, right: PDF.M }, theme: 'grid', headStyles: { fillColor: [15, 105, 196], textColor: 255 }, styles: { fontSize: 7.6, cellPadding: 2 } }); y = doc.lastAutoTable.finalY + 8; };
@@ -91,3 +94,4 @@ const Stats = {
     doc.save(`Estadistica_${D.today()}.pdf`);
   }
 };
+

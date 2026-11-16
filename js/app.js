@@ -12,8 +12,8 @@ const Auth = {
 
 const VIEWS = { pending: Pending, register: Register, history: History, students: Students, rooms: Rooms, admin: Admin, teacher: Teacher, stats: Stats };
 const NAV = {
-  admin: [['pending', 'Pendientes', 'fa-list-check'], ['register', 'Registrar evaluación', 'fa-file-circle-plus', 'cta'], ['history', 'Historial', 'fa-clock-rotate-left'], ['students', 'Estudiantes', 'fa-users'], ['stats', 'Estadística', 'fa-chart-pie'], ['rooms', 'Salas', 'fa-door-open'], ['admin', 'Administración', 'fa-gear']],
-  docente: [['teacher', 'Mi panel', 'fa-chalkboard-user'], ['register', 'Registrar evaluación', 'fa-file-circle-plus', 'cta'], ['history', 'Historial', 'fa-clock-rotate-left']],
+  admin: [['register', 'Registrar evaluación', 'fa-file-circle-plus', 'cta'], ['pending', 'Pendientes', 'fa-list-check'], ['history', 'Historial', 'fa-clock-rotate-left'], ['students', 'Estudiantes', 'fa-users'], ['stats', 'Estadística', 'fa-chart-pie'], ['rooms', 'Salas', 'fa-door-open'], ['admin', 'Administración', 'fa-gear']],
+  docente: [['register', 'Registrar evaluación', 'fa-file-circle-plus', 'cta'], ['teacher', 'Mi panel', 'fa-chalkboard-user'], ['history', 'Historial', 'fa-clock-rotate-left']],
   asistente: [['pending', 'Pendientes de mis cursos', 'fa-list-check']],
   inspector: [['pending', 'Pendientes', 'fa-list-check'], ['history', 'Historial', 'fa-clock-rotate-left'], ['students', 'Estudiantes', 'fa-users'], ['stats', 'Estadística', 'fa-chart-pie']],
   pie: [['pending', 'Pendientes', 'fa-list-check'], ['history', 'Historial', 'fa-clock-rotate-left'], ['students', 'Estudiantes', 'fa-users'], ['stats', 'Estadística', 'fa-chart-pie']]
@@ -46,8 +46,7 @@ const App = {
     $('#year').textContent = new Date().getFullYear();
     $('#login').hidden = true; $('#app').hidden = false;
     this.applyBrand();
-    const last = sessionStorage.getItem('ep_view');
-    this.go(NAV[u.role].some(n => n[0] === last) ? last : NAV[u.role][0][0]);
+    this.go(NAV[u.role][0][0]);
   },
 
   logout() { API.clear(); sessionStorage.removeItem('ep_view'); location.reload(); }
@@ -139,4 +138,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   initLogin();
 });
+
 

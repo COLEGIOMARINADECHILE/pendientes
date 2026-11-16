@@ -219,7 +219,8 @@ const History = {
         <div class="field"><label>Curso</label><select id="hf-course">${opts(COURSES, this.f.course, 'Todos')}</select></div>
         <div class="field" style="grid-column:span 2"><label>Buscar</label><input id="hf-q" value="${esc(this.f.q)}" placeholder="Estudiante, asignatura, docente…"></div>
       </div>
-      <div class="card table-card"><div class="table-wrap"><table class="tbl"><thead><tr><th>Estudiante</th><th>Evaluación</th><th>Docente</th><th>Fecha</th><th>Devuelta al docente</th><th>Acciones</th></tr></thead><tbody id="h-body"></tbody></table></div></div>`;
+      ${Auth.isAdmin() && this.f.status === ST.DONE ? '<div id="h-bulk" class="bulkbar"></div>' : ''}
+      <div class="card table-card"><div class="table-wrap"><table class="tbl"><thead><tr><th style="width:34px">${Auth.isAdmin() ? '<input type="checkbox" id="h-all" title="Seleccionar todo lo que se ve">' : ''}</th><th>Estudiante</th><th>Evaluación</th><th>Docente</th><th>Fecha</th><th>Devuelta al docente</th><th>Acciones</th></tr></thead><tbody id="h-body"></tbody></table></div></div>`;
     ['status', 'cycle', 'course'].forEach(k => $('#hf-' + k).onchange = e => { this.f[k] = e.target.value; this.refresh(); });
     $('#hf-q').oninput = e => { this.f.q = e.target.value; this.refresh(); };
     this.refresh();
@@ -232,13 +233,39 @@ const History = {
   },
   refresh() {
     const l = this.list().sort((a, b) => COURSES.indexOf(a.course) - COURSES.indexOf(b.course) || a.studentName.localeCompare(b.studentName, 'es'));
+    const ha = $('#h-all'); if (ha) ha.onchange = e => { l.forEach(x => e.target.checked ? this.sel.add(x.id) : this.sel.delete(x.id)); this.refresh(); };
     $('#h-body').innerHTML = l.slice(0, 500).map(e => `<tr class="${e.status === ST.DONE ? 'st-ok' : 'st-vio'}">
-      <td><b>${esc(fmtName(e.studentName))}</b><br><small>${esc(e.course)}</small></td>
+      <td>${Auth.isAdmin() ? `<input type="checkbox" ${this.sel.has(e.id) ? 'checked' : ''} onchange="History.toggle('${e.id}',this.checked)">` : ''}</td><td><b>${esc(fmtName(e.studentName))}</b><br><small>${esc(e.course)}</small></td>
       <td>${subjBadge(e.subject)}<div style="font-size:.8rem;margin-top:4px">${esc(e.content || '')}</div></td><td>${esc(titleCase(e.teacher))}</td>
       <td>${D.fmt(e.completedDate || e.citationDate)}</td>
       <td>${e.status !== ST.DONE ? '—' : Auth.isAdmin() ? `<label class="check"><input type="checkbox" ${e.returnedToTeacher ? 'checked' : ''} onchange="History.returned('${e.id}',this.checked)"> ${e.returnedToTeacher ? D.fmt(e.returnDate) : 'No'}</label>` : (e.returnedToTeacher ? 'Sí' : 'No')}</td>
       <td><div class="rowacts"><button class="btn sm" onclick="Ficha.open('','${e.id}')"><i class="fa-solid fa-folder-open"></i></button>${Auth.isAdmin() && e.status !== ST.DONE ? `<button class="btn sm" onclick="History.reopen('${e.id}')"><i class="fa-solid fa-rotate-left"></i> Devolver al proceso</button>` : ''}</div></td></tr>`).join('')
-      || `<tr><td colspan="6"><div class="empty"><i class="fa-regular fa-folder-open"></i>No hay evaluaciones en esta categoría.</div></td></tr>`;
+      || `<tr><td colspan="7"><div class="empty"><i class="fa-regular fa-folder-open"></i>No hay evaluaciones en esta categoría.</div></td></tr>`;
+    this.bulk();
+  },
+  sel: new Set(),
+  toggle(id, on) { on ? this.sel.add(id) : this.sel.delete(id); this.bulk(); },
+  bulk() {
+    const b = $('#h-bulk'); if (!b) return;
+    const vis = this.list().filter(e => e.status === ST.DONE), pend = vis.filter(e => !e.returnedToTeacher), n = this.sel.size, off = n ? '' : 'disabled';
+    b.innerHTML = `<div class="bb-count"><b>${n}</b><span>seleccionada(s)</span></div>
+      <button class="btn success" ${off} onclick="History.bulkReturn(false)"><i class="fa-solid fa-check-double"></i> Marcar seleccionadas como devueltas</button>
+      <button class="btn" onclick="History.bulkReturn(true)" ${pend.length ? '' : 'disabled'}><i class="fa-solid fa-list-check"></i> Marcar TODAS las visibles (${pend.length} sin devolver)</button>
+      <span class="bb-sep"></span>
+      <button class="btn sm" ${off} onclick="History.deliveryFor()"><i class="fa-solid fa-file-pdf"></i> Ficha de entrega</button>
+      <button class="btn sm" onclick="Delivery.pendingModal()"><i class="fa-solid fa-user-clock"></i> Lista de pendientes por docente</button>
+      <button class="btn sm ghost" ${off} onclick="History.sel.clear();History.refresh()">Limpiar</button>`;
+  },
+  deliveryFor() { Delivery.offer([...this.sel]); },
+  bulkReturn(all) {
+    UI.busy(null, async () => {
+      const vis = this.list().filter(e => e.status === ST.DONE);
+      const ids = all ? vis.filter(e => !e.returnedToTeacher).map(e => e.id) : [...this.sel];
+      if (!ids.length) return;
+      await DB.write(ids.map(id => Act.op(id, { returnedToTeacher: true, returnDate: D.today() })));
+      this.sel.clear(); this.refresh(); UI.toast(` prueba(s) marcadas como devueltas al docente.`, 'success');
+      Delivery.offer(ids);
+    });
   },
   returned(id, on) { UI.busy(null, async () => { await DB.write([Act.op(id, { returnedToTeacher: on, returnDate: on ? D.today() : null })]); this.refresh(); }); },
   reopen(id) { UI.busy(null, async () => { await Act.reopen(DB.get('evaluations', id)); UI.toast('Vuelve al proceso como pendiente.', 'success'); this.refresh(); }); },
@@ -331,4 +358,6 @@ const Rooms = {
     PDF.rooms(this.dist, $('#rm-cycle').value, $('#rm-date').value, $('#rm-order').value, 'print');
   }
 };
+
+
 
