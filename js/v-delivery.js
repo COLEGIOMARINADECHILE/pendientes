@@ -1,4 +1,4 @@
-/* ===== Entrega de pruebas a los docentes: resumen, ficha PDF y aviso por correo ===== */
+﻿/* ===== Entrega de pruebas a los docentes: resumen, ficha PDF y aviso por correo ===== */
 const Delivery = {
   /** Agrupa por docente las pruebas indicadas (done) y las que aún siguen pendientes. */
   groups(ids) {
@@ -49,7 +49,28 @@ const Delivery = {
   async send(ids, gs) {
     const r = await API.call('notifyTeachers', { evalIds: ids });
     if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info');
+    const okTeachers = new Set(r.results.filter(x => x.sent).map(x => String(x.teacher).trim().toUpperCase()));
+    const marks = (gs || []).filter(g => okTeachers.has(String(g.teacher).trim().toUpperCase())).flatMap(g => g.done.map(e => Act.op(e.id, { teacherNotifiedAt: new Date().toISOString() })));
+    if (marks.length) DB.write(marks).catch(() => {});
     UI.modal({ title: 'Resultado del envío', body: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b> · ${x.count} prueba(s)${x.pending ? ` · ${x.pending} pendiente(s)` : ''}</span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` });
+  },
+
+  /** Historial completo por docente (rendidas, pendientes, otras) con envío por correo. */
+  historyModal() {
+    const by = {};
+    DB.evaluations.filter(e => !isWithdrawn(e) && e.teacher).forEach(e => { const k = String(e.teacher).trim().toUpperCase(); (by[k] = by[k] || { teacher: e.teacher, done: 0, pend: 0, other: 0 })[e.status === ST.DONE ? 'done' : e.status === ST.PEND ? 'pend' : 'other']++; });
+    const rows = Object.values(by).sort((a, b) => a.teacher.localeCompare(b.teacher, 'es')).map(g => { const u = DB.users.find(x => sameText(x.name, g.teacher)); return { ...g, email: (u && u.email) || '' }; });
+    const con = rows.filter(r => r.email);
+    const d = UI.modal({ title: '<i class="fa-solid fa-paper-plane" style="color:var(--brand)"></i> Enviar historial a cada docente', wide: true,
+      body: `<div class="notice" style="margin-bottom:12px">Cada docente recibe por correo el resumen de <b>todas sus evaluaciones</b>: rendidas, pendientes y otras situaciones, con su nivel de rendición.</div>
+        <div class="table-wrap" style="max-height:52vh"><table class="tbl"><thead><tr><th>Docente</th><th>Rendidas</th><th>Pendientes</th><th>Otras</th><th>Correo</th><th></th></tr></thead><tbody>
+        ${rows.map((r, i) => `<tr><td><b>${esc(titleCase(r.teacher))}</b></td><td><span class="pill ok">${r.done}</span></td><td><span class="pill warn">${r.pend}</span></td><td>${r.other}</td>
+          <td>${r.email ? esc(r.email) : '<span class="pill bad">Sin correo</span>'}</td><td>${r.email ? `<button class="btn sm" data-one="${i}"><i class="fa-solid fa-envelope"></i> Enviar</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`,
+      footer: `<button class="btn" data-no>Cerrar</button><button class="btn primary" data-all ${con.length ? '' : 'disabled'}><i class="fa-solid fa-paper-plane"></i> Enviar a ${con.length} docente(s)</button>` });
+    const run = async (names, btn) => UI.busy(btn, async () => { const r = await API.call('notifyTeachers', { kind: 'history', teachers: names }); if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info'); UI.modal({ title: 'Resultado del envío', body: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b></span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` }); });
+    $('[data-no]', d).onclick = () => d.close();
+    $('[data-all]', d).onclick = e => run(con.map(r => r.teacher), e.currentTarget);
+    $$('[data-one]', d).forEach(b => b.onclick = e => run([rows[+b.dataset.one].teacher], e.currentTarget));
   },
 
   /** Lista de lo que aún sigue pendiente, por docente. */
@@ -96,3 +117,4 @@ PDF.delivery = function (groups) {
   });
   doc.save(`Ficha_entrega_docentes_${D.today()}.pdf`);
 };
+

@@ -38,61 +38,75 @@ const PDF = {
 
   citation: e => e.citationDate ? `${D.fmt(e.citationDate)} ${/^\d\d:\d\d$/.test(e.citationTime || '') ? e.citationTime : ''}`.trim() : (isUtp(e) ? 'A definir por UTP' : 'Por agendar'),
 
+  /** Tabla agrupada por curso, en hoja vertical: cada curso es una franja dentro de la misma tabla. */
+  courseBands(doc, y, head, evals, rowFn, color, cols, fontSize) {
+    const body = [], n = head.length, by = {};
+    evals.forEach(e => (by[e.course] = by[e.course] || []).push(e));
+    Object.keys(by).sort((a, b) => COURSES.indexOf(a) - COURSES.indexOf(b)).forEach(c => {
+      const l = by[c].sort((a, b) => a.studentName.localeCompare(b.studentName, 'es') || (a.subject || '').localeCompare(b.subject || '', 'es'));
+      body.push([{ content: `CURSO ${c}  ·  ${new Set(l.map(e => e.studentName)).size} estudiante(s)  ·  ${l.length} evaluación(es)`, colSpan: n, styles: { fillColor: [232, 241, 251], textColor: [10, 79, 158], fontStyle: 'bold', fontSize: fontSize + 1, minCellHeight: 7 } }]);
+      l.forEach((e, i) => body.push(rowFn(e, i)));
+    });
+    doc.autoTable({ head: [head], body, startY: y, margin: { left: 15, right: 15 }, theme: 'grid', headStyles: { fillColor: color, textColor: 255 }, styles: { font: 'helvetica', fontSize, cellPadding: 1.8, valign: 'middle', minCellHeight: 9 }, columnStyles: cols, rowPageBreak: 'avoid' });
+    return doc.lastAutoTable.finalY;
+  },
+
   pending(evals, meta, mode) {
-    const doc = PDF.doc('landscape'); PDF.header(doc, 'EVALUACIONES PENDIENTES', meta.scope);
-    doc.text(`${meta.text}  |  Total: ${evals.length}  |  Emitido: ${D.fmt(D.today())}`, PDF.M, 50);
-    PDF.grouped(doc, 54, ['N°', 'Curso', 'Estudiante', 'Asignatura', 'Contenido', 'Docente', 'Citación', 'Sala', 'Oport.'], evals,
-      (e, i) => [i + 1, e.course, fmtName(e.studentName), e.subject, e.content || '-', titleCase(e.teacher), PDF.citation(e), e.room || '-', isUtp(e) ? 'UTP' : `${attempt(e)}ª`],
-      [52, 105, 132], { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 16 }, 2: { cellWidth: 40 }, 8: { cellWidth: 12, halign: 'center' } });
+    const doc = PDF.doc(); PDF.header(doc, 'EVALUACIONES PENDIENTES', meta.scope);
+    doc.text(`${meta.text}  |  Total: ${evals.length}  |  Emitido: ${D.fmt(D.today())}`, 15, 50);
+    PDF.courseBands(doc, 54, ['N°', 'Estudiante', 'Asignatura', 'Contenido', 'Docente', 'Citación', 'Op.'], evals,
+      (e, i) => [i + 1, fmtName(e.studentName), e.subject, e.content || '-', titleCase(e.teacher), PDF.citation(e) + (e.room ? '\n' + e.room : ''), isUtp(e) ? 'UTP' : `${attempt(e)}ª`],
+      [15, 105, 196], { 0: { cellWidth: 7, halign: 'center' }, 1: { cellWidth: 36, fontStyle: 'bold' }, 2: { cellWidth: 24 }, 5: { cellWidth: 25 }, 6: { cellWidth: 9, halign: 'center' } }, 7);
     PDF.out(doc, `Pendientes_${D.today()}.pdf`, mode);
   },
 
-  /** Nómina de firmas. Con split=true cada curso va en su propia hoja y los estudiantes en orden alfabético. */
+  /** Lista de firmas en hoja vertical. split=true: cursos separados por franjas en la misma hoja, alfabético dentro de cada curso. */
   attendance(evals, meta, mode) {
-    const doc = PDF.doc('landscape'), W = doc.internal.pageSize.width;
-    const alpha = (a, b) => a.studentName.localeCompare(b.studentName, 'es') || (a.subject || '').localeCompare(b.subject || '', 'es') || (a.citationDate || '').localeCompare(b.citationDate || '');
-    const head = [['N°', 'Estudiante', 'Asignatura', 'Contenido', 'Docente', 'Fecha', 'Sala', 'Firma']];
-    const cols = { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 50, fontStyle: 'bold' }, 6: { cellWidth: 20, fontStyle: 'bold' }, 5: { cellWidth: 26 }, 7: { cellWidth: 40 } };
-    const style = { font: 'helvetica', fontSize: 8, cellPadding: 2, valign: 'middle', minCellHeight: 12 };
-    const rows = l => l.sort(alpha).map((e, i) => [i + 1, fmtName(e.studentName), e.subject, e.content || '-', titleCase(e.teacher), PDF.citation(e), e.room || 'Por asignar', '']);
+    const doc = PDF.doc(), W = doc.internal.pageSize.width;
+    PDF.header(doc, 'LISTA DE ASISTENCIA Y FIRMAS' + (meta.course ? ' - ' + meta.course : ''), meta.scope);
+    doc.text(`${meta.text}  |  ${new Set(evals.map(e => e.course + e.studentName)).size} estudiante(s) · ${evals.length} evaluación(es)`, 15, 50);
+    const cols = { 0: { cellWidth: 7, halign: 'center' }, 1: { cellWidth: 44, fontStyle: 'bold' }, 2: { cellWidth: 28 }, 4: { cellWidth: 26 }, 5: { cellWidth: 36 } };
+    let y;
     if (meta.split !== false) {
-      const by = {}; evals.forEach(e => (by[e.course] = by[e.course] || []).push(e));
-      Object.keys(by).sort((a, b) => COURSES.indexOf(a) - COURSES.indexOf(b)).forEach((c, i) => {
-        if (i) doc.addPage();
-        PDF.header(doc, `LISTA DE ASISTENCIA Y FIRMAS - CURSO ${c}`, c);
-        doc.text(`${meta.text}  |  ${new Set(by[c].map(e => e.studentName)).size} estudiante(s) · ${by[c].length} evaluación(es)  |  Orden alfabético`, PDF.M, 50);
-        doc.autoTable({ head, body: rows(by[c]), startY: 54, margin: { left: PDF.M, right: PDF.M }, theme: 'grid', headStyles: { fillColor: [15, 105, 196], textColor: 255 }, styles: style, columnStyles: cols });
-        const y = Math.min(doc.lastAutoTable.finalY + 14, doc.internal.pageSize.height - 16);
-        doc.text('________________________________', W - PDF.M - 70, y); doc.text('Firma docente / asistente a cargo', W - PDF.M - 70, y + 5);
-      });
+      y = PDF.courseBands(doc, 54, ['N°', 'Estudiante', 'Asignatura', 'Docente', 'Fecha · Sala', 'Firma'], evals,
+        (e, i) => [i + 1, fmtName(e.studentName), e.subject, titleCase(e.teacher), PDF.citation(e) + '\n' + (e.room || 'Sala por asignar'), ''], [15, 105, 196], cols, 7.6);
     } else {
-      PDF.header(doc, `NÓMINA DE RENDICIÓN Y FIRMAS${meta.course ? ' - ' + meta.course : ''}`, meta.scope);
-      doc.text(`${meta.text}  |  Total: ${evals.length}`, PDF.M, 50);
-      const body = [...evals].sort((a, b) => COURSES.indexOf(a.course) - COURSES.indexOf(b.course) || alpha(a, b)).map((e, i) => [i + 1, `${e.course} · ${fmtName(e.studentName)}`, e.subject, e.content || '-', titleCase(e.teacher), PDF.citation(e), e.room || 'Por asignar', '']);
-      doc.autoTable({ head, body, startY: 54, margin: { left: PDF.M, right: PDF.M }, theme: 'grid', headStyles: { fillColor: [15, 105, 196], textColor: 255 }, styles: style, columnStyles: cols });
+      const sorted = [...evals].sort((a, b) => COURSES.indexOf(a.course) - COURSES.indexOf(b.course) || a.studentName.localeCompare(b.studentName, 'es') || (a.subject || '').localeCompare(b.subject || '', 'es'));
+      doc.autoTable({ head: [['N°', 'Curso · Estudiante', 'Asignatura', 'Docente', 'Fecha · Sala', 'Firma']], body: sorted.map((e, i) => [i + 1, `${e.course} · ${fmtName(e.studentName)}`, e.subject, titleCase(e.teacher), PDF.citation(e) + '\n' + (e.room || 'Sala por asignar'), '']),
+        startY: 54, margin: { left: 15, right: 15 }, theme: 'grid', headStyles: { fillColor: [15, 105, 196], textColor: 255 }, styles: { font: 'helvetica', fontSize: 7.6, cellPadding: 1.8, valign: 'middle', minCellHeight: 9 }, columnStyles: cols });
+      y = doc.lastAutoTable.finalY;
     }
+    y = Math.min(y + 14, doc.internal.pageSize.height - 14);
+    doc.text('________________________________', W - 15 - 70, y); doc.text('Firma docente / asistente a cargo', W - 15 - 70, y + 5);
     PDF.out(doc, `Lista_Firmas_${D.today()}.pdf`, mode);
   },
-  /** Nómina por sala: una página por sala. */
+
+  /** Nómina por sala (hoja vertical): una página por sala, cursos como franjas. */
   rooms(dist, cycle, date, order, mode) {
-    const doc = PDF.doc('landscape'), salas = {};
+    const doc = PDF.doc(), salas = {}, W = doc.internal.pageSize.width;
     dist.forEach(e => (salas[e.room || 'Por asignar'] = salas[e.room || 'Por asignar'] || []).push(e));
     Object.keys(salas).sort((a, b) => a.localeCompare(b, 'es', { numeric: true })).forEach((r, idx) => {
       if (idx) doc.addPage();
       PDF.header(doc, `NÓMINA DE RENDICIÓN - ${r.toUpperCase()}`, cycle);
-      const list = salas[r].sort((a, b) => order === 'docente'
-        ? (a.teacher || '').localeCompare(b.teacher || '', 'es') || a.course.localeCompare(b.course, 'es', { numeric: true }) || a.studentName.localeCompare(b.studentName, 'es')
-        : a.course.localeCompare(b.course, 'es', { numeric: true }) || a.studentName.localeCompare(b.studentName, 'es'));
-      doc.text(`${cycle}  |  ${D.long(date)}  |  ${new Set(list.map(e => e.studentName + e.course)).size} estudiante(s) · ${list.length} evaluación(es)`, PDF.M, 50);
-      doc.autoTable({
-        head: [['N°', 'Curso', 'Estudiante', 'Asignatura', 'Instrumento', 'Contenido', 'Docente', 'Hora', 'Firma del estudiante']],
-        body: list.map((e, i) => [i + 1, e.course, fmtName(e.studentName), e.subject, e.instrumentType || '-', e.content || '-', titleCase(e.teacher), e.citationTime || '', '']),
-        startY: 54, margin: { left: PDF.M, right: PDF.M }, theme: 'grid', headStyles: { fillColor: [74, 105, 132], textColor: 255 },
-        styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 2, valign: 'middle', minCellHeight: 13 },
-        columnStyles: { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 15, fontStyle: 'bold' }, 7: { cellWidth: 12 }, 8: { cellWidth: 40 } }
-      });
-      const W = doc.internal.pageSize.width, y = Math.min(doc.lastAutoTable.finalY + 14, doc.internal.pageSize.height - 18);
-      doc.text('________________________________', W - PDF.M - 70, y); doc.text('Firma docente / asistente a cargo de la sala', W - PDF.M - 70, y + 5);
+      const list = salas[r];
+      doc.text(`${cycle}  |  ${D.long(date)}  |  ${new Set(list.map(e => e.studentName + e.course)).size} estudiante(s) · ${list.length} evaluación(es)`, 15, 50);
+      let y;
+      const cols = { 0: { cellWidth: 7, halign: 'center' }, 1: { cellWidth: 44, fontStyle: 'bold' }, 2: { cellWidth: 30 }, 4: { cellWidth: 12 }, 5: { cellWidth: 38 } };
+      if (order === 'docente') {
+        const by = {}; list.forEach(e => (by[e.teacher || 'SIN DOCENTE'] = by[e.teacher || 'SIN DOCENTE'] || []).push(e));
+        const body = [];
+        Object.keys(by).sort((a, b) => a.localeCompare(b, 'es')).forEach(t => {
+          body.push([{ content: `${titleCase(t).toUpperCase()}  ·  ${by[t].length}`, colSpan: 6, styles: { fillColor: [232, 241, 251], textColor: [10, 79, 158], fontStyle: 'bold' } }]);
+          by[t].sort((a, b) => a.course.localeCompare(b.course, 'es', { numeric: true }) || a.studentName.localeCompare(b.studentName, 'es')).forEach((e, i) => body.push([i + 1, `${e.course} · ${fmtName(e.studentName)}`, e.subject, titleCase(e.teacher), e.citationTime || '', '']));
+        });
+        doc.autoTable({ head: [['N°', 'Curso · Estudiante', 'Asignatura', 'Docente', 'Hora', 'Firma']], body, startY: 54, margin: { left: 15, right: 15 }, theme: 'grid', headStyles: { fillColor: [74, 105, 132], textColor: 255 }, styles: { font: 'helvetica', fontSize: 7.6, cellPadding: 1.8, valign: 'middle', minCellHeight: 10 }, columnStyles: cols, rowPageBreak: 'avoid' });
+        y = doc.lastAutoTable.finalY;
+      } else {
+        y = PDF.courseBands(doc, 54, ['N°', 'Estudiante', 'Asignatura', 'Docente', 'Hora', 'Firma'], list,
+          (e, i) => [i + 1, fmtName(e.studentName), e.subject, titleCase(e.teacher), e.citationTime || '', ''], [74, 105, 132], cols, 7.6);
+      }
+      y = Math.min(y + 12, doc.internal.pageSize.height - 14);
+      doc.text('________________________________', W - 15 - 70, y); doc.text('Firma docente / asistente a cargo de la sala', W - 15 - 70, y + 5);
     });
     PDF.out(doc, `Nomina_Salas_${date}.pdf`, mode);
   },
@@ -156,7 +170,7 @@ const PDF = {
   },
   /** Tabla simple para cualquier listado. */
   table(title, head, rows, mode, name, orient) {
-    const doc = PDF.doc(orient || 'landscape'); PDF.header(doc, title);
+    const doc = PDF.doc(orient || 'portrait'); PDF.header(doc, title);
     doc.text(`Total: ${rows.length}  |  Emitido: ${D.fmt(D.today())}`, PDF.M, 50);
     doc.autoTable({ head: [head], body: rows, startY: 54, margin: { left: PDF.M, right: PDF.M }, theme: 'grid', headStyles: { fillColor: [52, 97, 232], textColor: 255 }, styles: { font: 'helvetica', fontSize: 7.6, cellPadding: 2, valign: 'middle' } });
     PDF.out(doc, name, mode);
@@ -182,5 +196,6 @@ const PDF = {
     doc.save(`Cierre_${ev.studentName.replace(/ /g, '_')}.pdf`);
   }
 };
+
 
 

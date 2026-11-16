@@ -234,7 +234,7 @@ const Pending = {
         { name: 'from', label: 'Citadas desde', type: 'date', value: D.today() },
         { name: 'to', label: 'Hasta', type: 'date', value: D.today() },
         { name: 'mode', label: 'Salida', type: 'select', value: 'download', options: [['download', 'Descargar PDF'], ['print', 'Abrir para imprimir']] },
-        { name: 'split', label: 'Lista de firmas: separar cada curso en su propia hoja (estudiantes en orden alfabético)', type: 'check', value: true }
+        { name: 'split', label: 'Lista de firmas: cursos separados por franjas en la misma hoja (estudiantes en orden alfabético)', type: 'check', value: true }
       ]
     });
     if (!v) return;
@@ -250,6 +250,7 @@ const Pending = {
     else PDF.pending(evs, { text, scope }, v.mode);
   }
 };
+
 
 
 

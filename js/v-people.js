@@ -248,13 +248,21 @@ const History = {
   bulk() {
     const b = $('#h-bulk'); if (!b) return;
     const vis = this.list().filter(e => e.status === ST.DONE), pend = vis.filter(e => !e.returnedToTeacher), n = this.sel.size, off = n ? '' : 'disabled';
+    const unn = vis.filter(e => e.returnedToTeacher && !e.teacherNotifiedAt).length;
     b.innerHTML = `<div class="bb-count"><b>${n}</b><span>seleccionada(s)</span></div>
       <button class="btn success" ${off} onclick="History.bulkReturn(false)"><i class="fa-solid fa-check-double"></i> Marcar seleccionadas como devueltas</button>
       <button class="btn" onclick="History.bulkReturn(true)" ${pend.length ? '' : 'disabled'}><i class="fa-solid fa-list-check"></i> Marcar TODAS las visibles (${pend.length} sin devolver)</button>
       <span class="bb-sep"></span>
       <button class="btn sm" ${off} onclick="History.deliveryFor()"><i class="fa-solid fa-file-pdf"></i> Ficha de entrega</button>
+      <button class="btn primary" onclick="History.offerReturned()" title="Muestra a quiénes llegaría y qué pruebas devueltas y pendientes incluye"><i class="fa-solid fa-envelope-circle-check"></i> Avisar a docentes (${unn} devueltas sin avisar)</button>
+      <button class="btn sm" onclick="Delivery.historyModal()"><i class="fa-solid fa-paper-plane"></i> Enviar historial a cada docente</button>
       <button class="btn sm" onclick="Delivery.pendingModal()"><i class="fa-solid fa-user-clock"></i> Lista de pendientes por docente</button>
       <button class="btn sm ghost" ${off} onclick="History.sel.clear();History.refresh()">Limpiar</button>`;
+  },
+  offerReturned() {
+    const ids = this.list().filter(e => e.status === ST.DONE && e.returnedToTeacher && !e.teacherNotifiedAt).map(e => e.id);
+    if (!ids.length) return UI.toast('No hay pruebas devueltas sin avisar. Marque primero las evaluaciones como devueltas al docente.', 'info', 6000);
+    Delivery.offer(ids);
   },
   deliveryFor() { Delivery.offer([...this.sel]); },
   bulkReturn(all) {
@@ -267,7 +275,7 @@ const History = {
       Delivery.offer(ids);
     });
   },
-  returned(id, on) { UI.busy(null, async () => { await DB.write([Act.op(id, { returnedToTeacher: on, returnDate: on ? D.today() : null })]); this.refresh(); }); },
+  returned(id, on) { UI.busy(null, async () => { await DB.write([Act.op(id, { returnedToTeacher: on, returnDate: on ? D.today() : null, teacherNotifiedAt: null })]); this.refresh(); UI.toast(on ? 'Marcada como devuelta. Use «Avisar a docentes» para enviar el resumen.' : 'Devolución quitada.', 'success', 5000); }); },
   reopen(id) { UI.busy(null, async () => { await Act.reopen(DB.get('evaluations', id)); UI.toast('Vuelve al proceso como pendiente.', 'success'); this.refresh(); }); },
   pdf() {
     const l = this.list(); if (!l.length) return UI.toast('No hay datos para descargar.', 'error');
@@ -358,6 +366,7 @@ const Rooms = {
     PDF.rooms(this.dist, $('#rm-cycle').value, $('#rm-date').value, $('#rm-order').value, 'print');
   }
 };
+
 
 
 

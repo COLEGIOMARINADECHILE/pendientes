@@ -81,7 +81,7 @@ const Stats = {
   },
 
   pdf() {
-    const s = this.last || this.compute(), doc = PDF.doc('landscape');
+    const s = this.last || this.compute(), doc = PDF.doc();
     PDF.header(doc, 'ESTADÍSTICA DE EVALUACIONES PENDIENTES', this.f.course || this.f.cycle || null);
     if (this.f.teacher) doc.text(`Docente: ${titleCase(this.f.teacher)}`, PDF.M, 47);
     doc.text(`${this.f.course || this.f.cycle || 'Todos los ciclos'}  |  Consideradas: ${s.total}  |  Rendición: ${s.total ? Math.round(s.done * 100 / s.total) : 0}%  |  Oportunidades agotadas: ${s.ex}  |  Emitido: ${D.fmt(D.today())}`, PDF.M, 50);
@@ -94,4 +94,5 @@ const Stats = {
     doc.save(`Estadistica_${D.today()}.pdf`);
   }
 };
+
 
