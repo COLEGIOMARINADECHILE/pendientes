@@ -338,15 +338,15 @@ const History = {
 
 /* ---------- Mi panel docente (incluye jefatura) ---------- */
 const Teacher = {
-  scope: 'mine',
+  scope: 'mine', sel: new Set(),
   mount(el) {
-    const head = Auth.user.headTeacherOf;
+    const head = Auth.user.headTeacherOf; this.sel.clear();
     el.innerHTML = `
       <div class="page-head"><div><h1>Mi panel docente</h1><p>Estado de las evaluaciones de sus estudiantes. Cuando el estudiante rinda y usted reciba el instrumento, presione <b>Rendida y recibida</b>.</p></div>
         <div class="actions">${head ? `<select id="tp-scope" style="width:auto"><option value="mine">Mis evaluaciones</option><option value="head">Mi jefatura (${esc(head)})</option></select>` : ''}
         <button class="btn success" onclick="App.go('register')"><i class="fa-solid fa-plus"></i> Registrar evaluación</button></div></div>
       <div id="tp-notes" class="stack" style="margin-bottom:16px"></div>
-      <div class="card" style="margin-bottom:16px"><h2><i class="fa-regular fa-clock"></i> Pendientes</h2><div class="table-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Curso</th><th>Estudiante</th><th>Asignatura</th><th>Estado</th><th>Citación</th><th>Observaciones</th><th></th></tr></thead><tbody id="tp-pend"></tbody></table></div></div>
+      <div class="card" style="margin-bottom:16px"><h2><i class="fa-regular fa-clock"></i> Pendientes</h2><div id="tp-bulk"></div><div class="table-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th style="width:34px"><input type="checkbox" id="tp-all" title="Seleccionar todas mis pendientes"></th><th>Curso</th><th>Estudiante</th><th>Asignatura</th><th>Estado</th><th>Citación</th><th>Observaciones</th><th></th></tr></thead><tbody id="tp-pend"></tbody></table></div></div>
       <div class="card"><h2><i class="fa-solid fa-check-double"></i> Ya rendidas y cerradas</h2><div class="table-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Curso</th><th>Estudiante</th><th>Asignatura</th><th>Estado</th><th>Fecha</th></tr></thead><tbody id="tp-done"></tbody></table></div></div>`;
     if (head) $('#tp-scope').onchange = e => { this.scope = e.target.value; this.refresh(); };
     this.refresh();
@@ -358,17 +358,37 @@ const Teacher = {
     const pend = mine.filter(e => e.status === ST.PEND).sort((a, b) => a.course.localeCompare(b.course, 'es', { numeric: true }) || a.studentName.localeCompare(b.studentName, 'es'));
     const done = mine.filter(e => e.status !== ST.PEND).sort((a, b) => String(b.completedDate || b.citationDate || '').localeCompare(String(a.completedDate || a.citationDate || '')));
     const lastObs = e => { const o = allObs(e).slice(-1)[0]; return o ? esc(o.text) : '—'; };
-    $('#tp-pend').innerHTML = pend.map(e => { const u = isUtp(e); return `<tr class="${u ? 'st-utp' : 'st-semana'}"><td>${esc(e.course)}</td><td><b>${esc(fmtName(e.studentName))}</b></td><td>${subjBadge(e.subject)}<div style="font-size:.8rem;margin-top:4px">${esc(e.content || '')}</div></td>
+    const own = e => sameText(e.teacher, me.name) && !Auth.readOnly();
+    this.sel = new Set([...this.sel].filter(id => pend.some(e => e.id === id && own(e))));
+    $('#tp-pend').innerHTML = pend.map(e => { const u = isUtp(e); return `<tr class="${u ? 'st-utp' : 'st-semana'}"><td>${own(e) ? `<input type="checkbox" data-sel="${e.id}" ${this.sel.has(e.id) ? 'checked' : ''}>` : ''}</td><td>${esc(e.course)}</td><td><b>${esc(fmtName(e.studentName))}</b></td><td>${subjBadge(e.subject)}<div style="font-size:.8rem;margin-top:4px">${esc(e.content || '')}</div></td>
       <td>${u ? '<span class="pill utp">En manos de UTP</span><br><small>La aplica UTP en horario de clases.</small>' : `<span class="pill brand">${attempt(e)}ª citación</span>`}${isReschedule(e) ? ' <span class="pill sky">Por reagendar</span>' : ''}</td>
       <td>${e.citationDate ? `${D.long(e.citationDate)}<br><small>${esc(e.citationTime || '')}${e.room ? ' · ' + esc(e.room) : ''}</small>` : '<span class="muted">Sin fecha</span>'}</td>
       <td style="max-width:240px;font-size:.8rem">${lastObs(e)}</td>
-      <td>${sameText(e.teacher, me.name) ? `<button class="btn sm success" onclick="Teacher.received('${e.id}',this)"><i class="fa-solid fa-check-double"></i> Rendida y recibida</button>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="7"><div class="empty"><i class="fa-regular fa-circle-check"></i>No tiene evaluaciones pendientes.</div></td></tr>';
+      <td>${sameText(e.teacher, me.name) ? `<button class="btn sm success" onclick="Teacher.received('${e.id}',this)"><i class="fa-solid fa-check-double"></i> Rendida y recibida</button>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="8"><div class="empty"><i class="fa-regular fa-circle-check"></i>No tiene evaluaciones pendientes.</div></td></tr>';
     $('#tp-done').innerHTML = done.map(e => `<tr class="${e.status === ST.DONE ? 'st-ok' : 'st-vio'}"><td>${esc(e.course)}</td><td><b>${esc(fmtName(e.studentName))}</b></td><td>${subjBadge(e.subject)}</td><td><span class="pill ${e.status === ST.DONE ? 'ok' : 'vio'}">${esc(e.status)}</span>${e.status === ST.DONE && e.returnedToTeacher ? ' <small>recibida</small>' : ''}</td><td>${D.fmt(e.completedDate || e.citationDate)}</td></tr>`).join('') || '<tr><td colspan="5"><div class="empty">Aún no hay evaluaciones rendidas.</div></td></tr>';
+
+    const ownIds = pend.filter(own).map(e => e.id), all = $('#tp-all');
+    all.checked = !!ownIds.length && ownIds.every(id => this.sel.has(id)); all.onchange = () => { ownIds.forEach(id => all.checked ? this.sel.add(id) : this.sel.delete(id)); this.refresh(); };
+    document.querySelectorAll('#tp-pend [data-sel]').forEach(x => x.onchange = () => { x.checked ? this.sel.add(x.dataset.sel) : this.sel.delete(x.dataset.sel); this.bulk(ownIds.length); all.checked = ownIds.length && ownIds.every(id => this.sel.has(id)); });
+    this.bulk(ownIds.length);
 
     const plan = [...new Set(mine.filter(e => (studentOf(e.studentName, e.course) || {}).status === ST.PLAN).map(e => `${fmtName(e.studentName)} (${e.course})`))];
     const up = Cfg.blocked.filter(b => (b.end || b.start) >= D.today()).sort((a, b) => a.start.localeCompare(b.start)).slice(0, 8);
     $('#tp-notes').innerHTML = (plan.length ? `<div class="notice vio"><b>Estudiantes con Plan de Evaluación:</b> ${plan.map(esc).join(' · ')}. Sus evaluaciones anteriores quedan guardadas pero no se consideran; solo Coordinación o UTP puede agendarles nuevas.</div>` : '')
       + (up.length ? `<div class="notice bad"><b><i class="fa-solid fa-calendar-xmark"></i> Días bloqueados:</b> ${up.map(b => `${D.fmt(b.start)}${b.end && b.end !== b.start ? '–' + D.fmt(b.end) : ''} (${esc(b.reason || '')})`).join(' · ')}</div>` : '');
+  },
+  bulk(total) {
+    const n = this.sel.size, off = n ? '' : 'disabled', box = $('#tp-bulk');
+    box.innerHTML = total ? `<div class="bulkbar"><div class="bb-count"><b>${n}</b><span>seleccionada(s)</span></div>
+      <button class="btn success" ${off} onclick="Teacher.bulkDone(this)"><i class="fa-solid fa-check-double"></i> RINDIERON el instrumento</button>
+      <button class="btn danger" ${off} onclick="Teacher.bulkAbsent(this)"><i class="fa-solid fa-calendar-xmark"></i> NO RINDIERON</button>
+      <div class="bb-help">Marque a todos los estudiantes que quiera (o el casillero de la cabecera para todos) y elija si rindieron o no el instrumento. Quienes no rindieron se reprograman solos al próximo día oficial.</div></div>` : '';
+  },
+  selected() { return [...this.sel].map(id => DB.get('evaluations', id)).filter(Boolean); },
+  bulkDone(btn) { UI.busy(btn, async () => { const n = await Act.done(this.selected()); this.sel.clear(); this.refresh(); UI.toast(` evaluación(es) registradas como rendidas y recibidas.`, 'success'); }); },
+  async bulkAbsent(btn) {
+    if (!await UI.confirm('Marcar como no rindieron', `Se registrará la inasistencia de <b>${this.sel.size}</b> estudiante(s). Se reprograman automáticamente en el siguiente día oficial; si ya agotaron las citaciones pasan a UTP.`, 'Registrar inasistencias', true)) return;
+    UI.busy(btn, async () => { const r = await Act.absent(this.selected()); this.sel.clear(); this.refresh(); UI.toast(` reagendada(s) · ${r.utp} a UTP · ${r.susp} por suspensión.`, 'success'); });
   },
   received(id, btn) { UI.busy(btn, async () => { await Act.done([DB.get('evaluations', id)]); UI.toast('Registrada como rendida y recibida.', 'success'); this.refresh(); }); }
 };
@@ -418,6 +438,7 @@ const Rooms = {
     PDF.rooms(this.dist, $('#rm-cycle').value, $('#rm-date').value, $('#rm-order').value, 'print');
   }
 };
+
 
 
 

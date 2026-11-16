@@ -10,9 +10,9 @@ const Auth = {
   canContact() { return ['admin', 'asistente'].includes(this.role); }
 };
 
-const VIEWS = { pending: Pending, register: Register, history: History, students: Students, rooms: Rooms, admin: Admin, teacher: Teacher, stats: Stats };
+const VIEWS = { pending: Pending, register: Register, history: History, students: Students, rooms: Rooms, admin: Admin, teacher: Teacher, stats: Stats, log: Bitacora };
 const NAV = {
-  admin: [['register', 'Registrar evaluación', 'fa-file-circle-plus', 'cta'], ['pending', 'Pendientes', 'fa-list-check'], ['history', 'Historial', 'fa-clock-rotate-left'], ['students', 'Estudiantes', 'fa-users'], ['stats', 'Estadística', 'fa-chart-pie'], ['rooms', 'Salas', 'fa-door-open'], ['admin', 'Administración', 'fa-gear']],
+  admin: [['register', 'Registrar evaluación', 'fa-file-circle-plus', 'cta'], ['pending', 'Pendientes', 'fa-list-check'], ['history', 'Historial', 'fa-clock-rotate-left'], ['students', 'Estudiantes', 'fa-users'], ['stats', 'Estadística', 'fa-chart-pie'], ['rooms', 'Salas', 'fa-door-open'], ['log', 'Bitácora', 'fa-clipboard-list'], ['admin', 'Administración', 'fa-gear']],
   docente: [['register', 'Registrar evaluación', 'fa-file-circle-plus', 'cta'], ['teacher', 'Mi panel', 'fa-chalkboard-user'], ['history', 'Historial', 'fa-clock-rotate-left']],
   asistente: [['pending', 'Pendientes de mis cursos', 'fa-list-check']],
   inspector: [['pending', 'Pendientes', 'fa-list-check'], ['history', 'Historial', 'fa-clock-rotate-left'], ['students', 'Estudiantes', 'fa-users'], ['stats', 'Estadística', 'fa-chart-pie']],
@@ -275,6 +275,8 @@ const Pwa = {
   }
 };
 document.addEventListener('DOMContentLoaded', () => Pwa.init());
+
+
 
 
 

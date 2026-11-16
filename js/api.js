@@ -54,10 +54,11 @@ const DB = {
   /** El cambio se ve al instante en pantalla; el guardado en Google Sheets sigue en segundo plano, en orden.
    *  Use `await DB.flush()` antes de pedirle algo al servidor que dependa de lo recién guardado. */
   write(ops) {
+    let logs = []; try { logs = Audit.fromOps(ops); } catch (e) { /* la bitácora no debe impedir guardar */ }
     ops.forEach(o => this.apply(o));
     this.pending++;
     this.queue = this.queue
-      .then(() => API.call('batch', { ops }))
+      .then(() => API.call('batch', { ops, logs }))
       .catch(async e => { UI.toast('No se pudo guardar: ' + (e.message || e) + '. Se recargan los datos.', 'error', 9000); await this._load().catch(() => {}); if (typeof App !== 'undefined' && App.view) App.go(App.view); })
       .finally(() => { this.pending--; });
     return Promise.resolve();
@@ -146,8 +147,9 @@ const Mock = {
         return { token: 'mock-' + u.id, user: pub(u) };
       }
       case 'loadAll': me(); return { users: d.users.map(pub), students: d.students, evaluations: d.evaluations, config: d.config };
-      case 'batch':
-        me();
+      case 'batch': {
+        const who = me(); d.log = d.log || [];
+        (p.logs || []).forEach((e, i) => { const now = new Date(), pad = n => String(n).padStart(2, '0'), at = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`; d.log.push({ id: newId(), at, day: at.slice(0, 10), user: who.name, role: who.role, action: e.action, text: e.text, student: e.student, course: e.course, teacher: e.teacher }); });
         p.ops.forEach(o => {
           if (o.c === 'settings') { Object.assign(d.config, o.data); return; }
           const arr = d[o.c], i = arr.findIndex(x => x.id === o.id);
@@ -156,6 +158,11 @@ const Mock = {
           else if (i > -1) arr[i] = { ...o.data, id: o.id }; else arr.push({ ...o.data, id: o.id });
         });
         this.save(d); return {};
+      }
+      case 'logList': {
+        me(); const q = String(p.q || '').toLowerCase(), rows = (d.log || []).slice().reverse().filter(e => (!p.action || e.action === p.action) && (!p.from || e.day >= p.from) && (!p.to || e.day <= p.to) && (!q || [e.user, e.text, e.student, e.course, e.teacher, e.action].join(' ').toLowerCase().includes(q)));
+        const off = p.offset || 0, lim = p.limit || 200; return { rows: rows.slice(off, off + lim), more: rows.length > off + lim };
+      }
       case 'saveUser': {
         const u = p.user, ex = u.id && d.users.find(x => x.id === u.id);
         if (ex) Object.assign(ex, u, { password: u.password || ex.password });
@@ -185,6 +192,10 @@ const Mock = {
 
 
 window.addEventListener('beforeunload', e => { if (DB.pending > 0) { e.preventDefault(); e.returnValue = ''; } });
+
+
+
+
 
 
 

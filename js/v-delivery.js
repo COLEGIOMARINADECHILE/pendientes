@@ -50,10 +50,10 @@ const Delivery = {
   },
 
   /** Muestra el correo EXACTO que recibirá el docente. */
-  preview(teacher, ids, btn) {
+  preview(teacher, ids, btn, from) {
     UI.busy(btn, async () => {
       await DB.flush();
-      const r = await API.call('previewTeacher', { teacher, evalIds: ids });
+      const r = await API.call('previewTeacher', { teacher, evalIds: ids, from: from || '' });
       const d = UI.modal({ title: `Así lo recibe ${esc(titleCase(teacher))}`, wide: true, body: '<iframe id="tp-frame" style="width:100%;height:66vh;border:1px solid var(--line);border-radius:12px;background:#fff"></iframe>' });
       $('#tp-frame', d).srcdoc = r.html;
     });
@@ -69,23 +69,48 @@ const Delivery = {
     UI.notice({ type: 'success', title: 'Resultado del envío', html: `<ul class="list">${r.results.map(x => { const g = (gs || []).find(h => normP(h.teacher) === normP(x.teacher)); return `<li><span><b>${esc(titleCase(x.teacher))}</b> · ${x.count} prueba(s) para retirar${g ? `<br><small class="muted">${g.done.map(e => esc(fmtName(e.studentName)) + ' (' + esc(e.course) + ')').join(' · ')}</small>` : ''}${x.pending ? ` · ${x.pending} pendiente(s)` : ''}</span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`; }).join('')}</ul>` });
   },
 
-  /** Historial completo por docente (rendidas, pendientes, otras) con envío por correo. */
+  /** Historial completo por docente con fecha de inicio elegible; la fecha de corte es el día en que se envía. */
   historyModal(only) {
-    const by = {};
-    DB.evaluations.filter(e => !isWithdrawn(e) && e.teacher).forEach(e => { const k = normP(e.teacher); (by[k] = by[k] || { teacher: e.teacher, done: 0, pend: 0, other: 0 })[e.status === ST.DONE ? 'done' : e.status === ST.PEND ? 'pend' : 'other']++; });
-    const rows = Object.values(by).filter(g => !only || normP(g.teacher) === normP(only)).sort((a, b) => a.teacher.localeCompare(b.teacher, 'es')).map(g => { const u = DB.users.find(x => sameText(x.name, g.teacher)); return { ...g, email: (u && u.email) || '' }; });
-    const con = rows.filter(r => r.email);
+    const today = D.today(), y = today.slice(0, 4), evDate = e => e.completedDate || e.citationDate || e.absenceDate || String(e.createdAt || '').slice(0, 10) || '';
+    const build = from => {
+      const by = {};
+      DB.evaluations.filter(e => !isWithdrawn(e) && e.teacher).forEach(e => {
+        const g = (by[normP(e.teacher)] = by[normP(e.teacher)] || { teacher: e.teacher, done: 0, pend: 0, other: 0 });
+        if (e.status === ST.DONE) { if (!from || evDate(e) >= from) g.done++; }
+        else if (e.status === ST.PEND) g.pend++; else g.other++;
+      });
+      return Object.values(by).filter(g => !only || normP(g.teacher) === normP(only)).sort((a, b) => a.teacher.localeCompare(b.teacher, 'es'))
+        .map(g => { const u = DB.users.find(x => sameText(x.name, g.teacher)); return { ...g, email: (u && u.email) || '' }; });
+    };
+    let rows = [];
     const d = UI.modal({ title: '<i class="fa-solid fa-paper-plane" style="color:var(--brand)"></i> Enviar historial a cada docente', wide: true,
-      body: `<div class="notice" style="margin-bottom:12px">Cada docente recibe por correo el resumen de <b>todas sus evaluaciones</b>: rendidas, pendientes y otras situaciones, con su nivel de rendición.</div>
-        <div class="table-wrap" style="max-height:52vh"><table class="tbl"><thead><tr><th>Docente</th><th>Rendidas</th><th>Pendientes</th><th>Otras</th><th>Correo</th><th></th></tr></thead><tbody>
+      body: `<div class="notice" style="margin-bottom:12px">Cada docente recibe por correo el estado de sus evaluaciones: <b>pruebas rendidas</b> (desde la fecha que elija), <b>pendientes</b> con su fecha de citación y las <b>no consideradas</b>. La fecha de corte es <b>hoy, día del envío</b>.</div>
+        <div class="chips" style="margin-bottom:10px">${[['', 'Todo el historial'], [`${y}-03-01`, 'Año escolar (1 de marzo)'], [`${y}-01-01`, 'Este año'], [today.slice(0, 8) + '01', 'Este mes'], [D.add(today, -30), 'Últimos 30 días']].map(([v, l]) => `<button type="button" class="btn sm" data-from="${v}">${l}</button>`).join('')}</div>
+        <div class="fgrid" style="margin-bottom:12px"><div class="field"><label>Historial desde (inicio)</label><input type="date" id="hm-from" max="${today}"></div>
+          <div class="field"><label>Hasta (fecha de corte)</label><input type="date" value="${today}" disabled><small>Es siempre la fecha de envío del correo.</small></div></div>
+        <div id="hm-list"></div>`,
+      footer: `<button class="btn" data-no>Cerrar</button><button class="btn primary" data-all><i class="fa-solid fa-paper-plane"></i> Enviar</button>` });
+    const q = s => d.querySelector(s), from = () => q('#hm-from').value || '';
+    const run = (names, btn) => UI.busy(btn, async () => {
+      await DB.flush();
+      const r = await API.call('notifyTeachers', { kind: 'history', teachers: names, from: from() });
+      if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info');
+      UI.notice({ type: 'success', title: 'Resultado del envío', html: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b></span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` });
+    });
+    const render = () => {
+      rows = build(from()); const con = rows.filter(r => r.email);
+      q('#hm-list').innerHTML = `<div class="table-wrap" style="max-height:44vh"><table class="tbl"><thead><tr><th>Docente</th><th>Rendidas${from() ? ' (desde ' + D.fmt(from()) + ')' : ''}</th><th>Pendientes</th><th>Otras</th><th>Correo</th><th></th></tr></thead><tbody>
         ${rows.map((r, i) => `<tr><td><b>${esc(titleCase(r.teacher))}</b></td><td><span class="pill ok">${r.done}</span></td><td><span class="pill warn">${r.pend}</span></td><td>${r.other}</td>
-          <td>${r.email ? esc(r.email) : '<span class="pill bad">Sin correo</span>'}</td><td style="white-space:nowrap"><button class="btn sm" data-prevh="${i}"><i class="fa-regular fa-eye"></i> Ver</button> ${r.email ? `<button class="btn sm" data-one="${i}"><i class="fa-solid fa-envelope"></i> Enviar</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`,
-      footer: `<button class="btn" data-no>Cerrar</button><button class="btn primary" data-all ${con.length ? '' : 'disabled'}><i class="fa-solid fa-paper-plane"></i> Enviar a ${con.length} docente(s)</button>` });
-    const run = async (names, btn) => UI.busy(btn, async () => { await DB.flush(); const r = await API.call('notifyTeachers', { kind: 'history', teachers: names }); if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info'); UI.notice({ type: 'success', title: 'Resultado del envío', html: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b></span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` }); });
-    $('[data-no]', d).onclick = () => d.close();
-    $('[data-all]', d).onclick = e => run(con.map(r => r.teacher), e.currentTarget);
-    $$('[data-one]', d).forEach(b => b.onclick = e => run([rows[+b.dataset.one].teacher], e.currentTarget));
-    $$('[data-prevh]', d).forEach(b => b.onclick = () => this.preview(rows[+b.dataset.prevh].teacher, [], b));
+          <td>${r.email ? esc(r.email) : '<span class="pill bad">Sin correo</span>'}</td><td style="white-space:nowrap"><button class="btn sm" data-prevh="${i}"><i class="fa-regular fa-eye"></i> Ver</button> ${r.email ? `<button class="btn sm" data-one="${i}"><i class="fa-solid fa-envelope"></i> Enviar</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+      const b = q('[data-all]'); b.disabled = !con.length; b.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Enviar a ${con.length} docente(s)`;
+      d.querySelectorAll('[data-one]').forEach(x => x.onclick = e => run([rows[+x.dataset.one].teacher], e.currentTarget));
+      d.querySelectorAll('[data-prevh]').forEach(x => x.onclick = () => this.preview(rows[+x.dataset.prevh].teacher, [], x, from()));
+    };
+    d.querySelectorAll('[data-from]').forEach(b => b.onclick = () => { q('#hm-from').value = b.dataset.from; render(); });
+    q('#hm-from').onchange = render;
+    q('[data-no]').onclick = () => d.close();
+    q('[data-all]').onclick = e => run(rows.filter(r => r.email).map(r => r.teacher), e.currentTarget);
+    render();
   },
 
   /** Confirma a qué docentes se enviará su lista de pendientes y la envía. */
@@ -213,6 +238,7 @@ PDF.delivery = function (groups) {
   });
   doc.save(`Ficha_entrega_docentes_${D.today()}.pdf`);
 };
+
 
 
 
