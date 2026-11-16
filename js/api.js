@@ -135,7 +135,7 @@ const Mock = {
   },
   run(action, p, token) {
     const d = this.load();
-    const pub = u => ({ id: u.id, name: u.name, role: u.role, assignments: u.assignments || [], headTeacherOf: u.headTeacherOf || null, mainLevel: u.mainLevel || null, email: u.email || '' });
+    const pub = u => ({ id: u.id, name: u.name, role: u.role, assignments: u.assignments || [], headTeacherOf: u.headTeacherOf || null, mainLevel: u.mainLevel || null, email: u.email || '', mustChange: !!u.mustChange });
     const me = () => { const u = d.users.find(x => 'mock-' + x.id === token); if (!u) throw new Error('Sesión expirada.'); return u; };
     switch (action) {
       case 'boot': { const u = this.run('publicUsers', p, token); return { users: u.users, banner: d.branding.banner || '', logo: d.branding.logo || '', badges: d.branding.badges || [] }; }
@@ -165,9 +165,12 @@ const Mock = {
       }
       case 'saveUser': {
         const u = p.user, ex = u.id && d.users.find(x => x.id === u.id);
-        if (ex) Object.assign(ex, u, { password: u.password || ex.password });
-        else d.users.push({ ...u, id: newId(), password: u.password });
-        this.save(d); return { users: d.users.map(pub) };
+        let generated = '';
+        if (!u.password && !ex) generated = Math.random().toString(36).slice(2, 10);
+        const mc = (u.password || generated) ? u.mustChange !== false : (ex ? !!ex.mustChange : false);
+        if (ex) Object.assign(ex, u, { password: u.password || ex.password, mustChange: mc || u.mustChange === true });
+        else d.users.push({ ...u, id: newId(), password: u.password || generated, mustChange: true });
+        this.save(d); return { users: d.users.map(pub), generated, mail: p.sendMail ? { sent: false, reason: 'Modo demo: no se envían correos' } : null };
       }
       case 'deleteUser': d.users = d.users.filter(x => x.id !== p.id); this.save(d); return { users: d.users.map(pub) };
       case 'sendStudents': me(); return { sent: 0, noMail: 0, results: [], demo: true };
@@ -175,7 +178,30 @@ const Mock = {
       case 'previewTeacher': me(); return { html: '<p style="font-family:sans-serif;padding:20px">La vista previa del correo está disponible al conectar con Apps Script.</p>' };
       case 'notifyTeachers': me(); return { results: [], demo: true };
       case 'notify': me(); return { sent: 0, noMail: 0, demo: true };
-      case 'changePassword': me().password = p.password; this.save(d); return {};
+      case 'changePassword': { if (String(p.password || '').length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.'); if (/^(1234|0000|1111|123456|12345|123|1212)$/.test(p.password)) throw new Error('Esa contraseña es muy fácil de adivinar. Elija otra.'); const u = me(); u.password = p.password; u.mustChange = false; this.save(d); return {}; }
+      case 'saveUsers': {
+        me(); const created = [], errors = []; let updated = 0;
+        (p.users || []).forEach(x => {
+          if (x.id) { const ex = d.users.find(u => u.id === x.id); if (!ex) return; Object.assign(ex, x); if ('email' in x) ex.email = x.email ? String(x.email).split('@')[0] + '@andaliensur.cl' : ''; updated++; return; }
+          const name = String(x.name || '').trim().toUpperCase();
+          if (!name || !x.role) { errors.push('Faltan datos: ' + (name || '(sin nombre)')); return; }
+          if (d.users.some(u => u.name === name)) { errors.push('Ya existe un usuario llamado ' + name); return; }
+          const pass = Math.random().toString(36).slice(2, 10);
+          d.users.push({ id: newId(), name, role: x.role, assignments: [], email: x.email ? String(x.email).split('@')[0] + '@andaliensur.cl' : '', password: pass, mustChange: true });
+          created.push({ name, email: x.email || '', pass, sent: false });
+        });
+        this.save(d); return { users: d.users.map(pub), created, errors, updated };
+      }
+      case 'forceChange': {
+        me(); const names = [];
+        d.users.forEach(u => { const hit = p.mode === 'weak' ? ['1', '12', '123', '1234', '12345', '123456', '0000', '1111', '1212'].includes(u.password) : p.mode === 'all' ? true : (p.ids || []).includes(u.id); if (hit && !u.mustChange) { u.mustChange = true; names.push(u.name); } });
+        this.save(d); return { users: d.users.map(pub), count: names.length, names };
+      }
+      case 'resetPasswords': {
+        me(); const results = [];
+        d.users.filter(u => (p.ids || []).includes(u.id)).forEach(u => { u.password = Math.random().toString(36).slice(2, 10); u.mustChange = true; results.push({ name: u.name, email: u.email || '', sent: false, reason: 'Modo demo: no se envían correos', pass: u.password }); });
+        this.save(d); return { users: d.users.map(pub), results };
+      }
       case 'saveBranding': Object.assign(d.branding, p.banner ? { banner: p.banner } : {}, p.logo ? { logo: p.logo } : {}, p.badges ? { badges: p.badges } : {}); this.save(d); return {};
       case 'portal': {
         const rut = normRut(p.rut), s = d.students.find(x => normRut(x.rut) === rut && !x.withdrawn);
@@ -192,6 +218,7 @@ const Mock = {
 
 
 window.addEventListener('beforeunload', e => { if (DB.pending > 0) { e.preventDefault(); e.returnValue = ''; } });
+
 
 
 

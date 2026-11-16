@@ -494,3 +494,11 @@ dialog.popup{width:min(520px,94vw);border-radius:20px}
 .pt-next b{color:#fff;font-size:1.2rem;margin:2px 0}
 .pt-next span{color:#f2fff0;font-weight:700}
 .pt-next span b{display:inline;font-size:inherit;margin:0;background:rgba(255,255,255,.25);padding:0 8px;border-radius:999px}
+
+/* Edición múltiple de usuarios */
+.mailgrp.sm input{padding:6px 8px;font-size:.85rem;min-width:110px}
+.mailgrp.sm span{padding:0 8px;font-size:.78rem;white-space:nowrap}
+#us-body select{padding:6px 8px;font-size:.85rem;min-width:130px}
+#us-body tr.dirty td{background:#fff7e0}
+#us-body tr.dirty{box-shadow:inset 4px 0 0 #f5b700}
+

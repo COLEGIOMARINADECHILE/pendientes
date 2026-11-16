@@ -48,7 +48,27 @@ const App = {
     $('#year').textContent = new Date().getFullYear();
     $('#login').hidden = true; $('#app').hidden = false;
     this.applyBrand();
+    if (u.mustChange) await this.forcePassword();   // clave provisoria: debe crear la propia antes de usar la plataforma
     this.go(NAV[u.role][0][0]);
+  },
+
+  /** Ventana que no se puede cerrar: obliga a reemplazar la clave provisoria. */
+  forcePassword() {
+    return new Promise(res => {
+      const d = UI.modal({ title: '<i class="fa-solid fa-lock" style="color:var(--brand)"></i> Cree su clave personal', body: '<p class="muted" style="margin:0 0 12px">Por seguridad debe reemplazar la clave provisoria antes de continuar. Use al menos 6 caracteres y evite claves simples como 1234.</p><div class="stack"><div class="field"><label>Clave nueva</label><input id="fp-1" type="password" autocomplete="new-password"></div><div class="field"><label>Repita la clave nueva</label><input id="fp-2" type="password" autocomplete="new-password"></div></div>', footer: '<button class="btn" data-out type="button">Cerrar sesión</button><button class="btn primary" data-ok type="button">Guardar y entrar</button>' });
+      $('[data-x]', d).remove(); d.addEventListener('cancel', e => e.preventDefault());
+      $('[data-out]', d).onclick = () => App.logout();
+      const go = btn => UI.busy(btn, async () => {
+        const a = $('#fp-1', d).value, b = $('#fp-2', d).value;
+        if (a !== b) throw new Error('Las dos claves no coinciden.');
+        await API.call('changePassword', { password: a });
+        API.user.mustChange = false; API.setSession(API.token, API.user);
+        d.close(); UI.toast('Clave actualizada. ¡Bienvenido(a)!', 'success', 2500); res();
+      });
+      $('[data-ok]', d).onclick = e => go(e.currentTarget);
+      d.addEventListener('keydown', e => { if (e.key === 'Enter') go($('[data-ok]', d)); });
+      setTimeout(() => $('#fp-1', d).focus(), 50);
+    });
   },
 
   logout() { API.clear(); sessionStorage.removeItem('ep_view'); location.reload(); }
@@ -275,6 +295,7 @@ const Pwa = {
   }
 };
 document.addEventListener('DOMContentLoaded', () => Pwa.init());
+
 
 
 

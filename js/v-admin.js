@@ -62,34 +62,152 @@ const Admin = {
       if (!start || !reason) throw new Error('Indique la fecha y el motivo.');
       if (end < start) throw new Error('"Hasta" no puede ser anterior a "Desde".');
       await Act.saveConfig({ blockedDays: [...Cfg.blocked, { id: newId(), start, end, reason, cycle: $('#b-cy').value }] });
-      UI.toast('Día(s) bloqueado(s). Revise si había evaluaciones citadas en esas fechas.', 'success'); this.calendar($('#ad-body'));
+      UI.toast('Día(s) bloqueado(s). Revise si había evaluaciones citadas en esas fechas.', 'success'); this.keep('calendar');
     });
   },
-  delBlock(id) { UI.busy(null, async () => { await Act.saveConfig({ blockedDays: Cfg.blocked.filter(b => b.id !== id) }); this.calendar($('#ad-body')); }); },
+  delBlock(id) { UI.busy(null, async () => { await Act.saveConfig({ blockedDays: Cfg.blocked.filter(b => b.id !== id) }); this.keep('calendar'); }); },
 
   /* ---------- Usuarios ---------- */
+  uf: { q: '', role: '' }, sel: new Set(), dirty: {},
+  /** Vuelve a dibujar una pestaña sin que la página salte: queda en el mismo lugar. */
+  keep(tab) { const y = window.scrollY, box = document.querySelector('#ad-body .table-wrap'), bx = box ? box.scrollTop : 0; this[tab]($('#ad-body')); window.scrollTo(0, y); const b2 = document.querySelector('#ad-body .table-wrap'); if (b2) b2.scrollTop = bx; },
+
+  userRow(u) {
+    const as = u.assignments || [], cs = [...new Set(as.map(a => a.course))];
+    return `<tr data-id="${u.id}" data-s="${esc(normP(u.name + ' ' + (u.email || '')))}" data-r="${u.role}">
+      <td><input type="checkbox" data-sel="${u.id}" ${this.sel.has(u.id) ? 'checked' : ''}></td>
+      <td><b>${esc(titleCase(u.name))}</b>${u.mustChange ? '<br><span class="pill warn" title="Al ingresar deberá crear una clave nueva">Debe cambiar la clave</span>' : ''}</td>
+      <td><div class="mailgrp sm"><input data-f="email" value="${esc(staffLocal(u.email))}" placeholder="usuario" autocomplete="off"><span>@andaliensur.cl</span></div></td>
+      <td><select data-f="role">${opts(Object.entries(ROLE_LABELS), u.role)}</select></td>
+      <td><select data-f="headTeacherOf" ${u.role === 'docente' ? '' : 'disabled'}>${opts(COURSES, u.headTeacherOf || '', 'Ninguno')}</select></td>
+      <td>${as.length ? `${as.length} (${cs.slice(0, 3).join(', ')}${cs.length > 3 ? '…' : ''})` : '—'}</td>
+      <td><div class="rowacts"><button class="btn sm" onclick="Admin.userForm('${u.id}')"><i class="fa-solid fa-pen"></i> Editar</button><button class="btn sm danger" onclick="Admin.delUser('${u.id}')"><i class="fa-solid fa-trash"></i></button></div></td></tr>`;
+  },
+
   users(el) {
-    el.innerHTML = `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h2><i class="fa-solid fa-user-gear"></i> Usuarios y accesos</h2><button class="btn primary" onclick="Admin.userForm()"><i class="fa-solid fa-user-plus"></i> Nuevo usuario</button></div>
-      <div class="table-wrap" style="margin-top:14px"><table class="tbl"><thead><tr><th>Nombre</th><th>Correo</th><th>Perfil</th><th>Jefatura</th><th>Asignaciones</th><th></th></tr></thead><tbody>
-      ${[...DB.users].sort((a, b) => a.name.localeCompare(b.name, 'es')).map(u => `<tr><td><b>${esc(titleCase(u.name))}</b></td><td><button class="mail-link" onclick="Admin.userForm('${u.id}')">${u.email ? esc(u.email) : '<span class="pill warn">+ Agregar correo</span>'}</button></td><td><span class="pill brand">${esc(ROLE_LABELS[u.role] || u.role)}</span></td><td>${esc(u.headTeacherOf || '—')}</td><td>${(u.assignments || []).length ? `${(u.assignments || []).length} (${[...new Set(u.assignments.map(a => a.course))].slice(0, 4).join(', ')}${new Set(u.assignments.map(a => a.course)).size > 4 ? '…' : ''})` : '—'}</td>
-        <td><div class="rowacts"><button class="btn sm" onclick="Admin.userForm('${u.id}')"><i class="fa-solid fa-pen"></i> Editar</button><button class="btn sm danger" onclick="Admin.delUser('${u.id}')"><i class="fa-solid fa-trash"></i></button></div></td></tr>`).join('')}
-      </tbody></table></div></div>
+    this.sel = new Set([...this.sel].filter(id => DB.users.some(u => u.id === id))); this.dirty = {};
+    const list = [...DB.users].sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    el.innerHTML = `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h2><i class="fa-solid fa-user-gear"></i> Usuarios y accesos <small class="muted">(${list.length})</small></h2>
+        <div class="actions"><button class="btn primary" onclick="Admin.userForm()"><i class="fa-solid fa-user-plus"></i> Nuevo usuario</button><button class="btn" onclick="Admin.bulkAdd()"><i class="fa-solid fa-users-line"></i> Agregar varios</button></div></div>
+      <div class="notice" style="margin:12px 0"><b><i class="fa-solid fa-lock"></i> Claves:</b> las claves nuevas son provisorias y la persona debe cambiarlas al ingresar.
+        <div class="actions" style="margin-top:8px"><button class="btn sm" onclick="Admin.forceMode('weak',this)"><i class="fa-solid fa-triangle-exclamation"></i> Exigir cambio a quienes tienen clave 1234 (u otra muy simple)</button>
+        <button class="btn sm" onclick="Admin.forceMode('all',this)"><i class="fa-solid fa-users"></i> Exigir cambio a todos</button></div></div>
+      <div class="toolbar" style="margin-bottom:8px"><div class="field"><label>Buscar</label><input id="us-q" value="${esc(this.uf.q)}" placeholder="Nombre o correo…"></div>
+        <div class="field"><label>Perfil</label><select id="us-role">${opts(Object.entries(ROLE_LABELS), this.uf.role, 'Todos los perfiles')}</select></div></div>
+      <div id="us-bar" style="position:sticky;top:0;z-index:5"></div>
+      <p class="muted" style="margin:6px 0">Edite el correo, el perfil o la jefatura directamente en la tabla (de varios usuarios a la vez) y presione <b>Guardar todos los cambios</b>.</p>
+      <div class="table-wrap"><table class="tbl"><thead><tr><th style="width:34px"><input type="checkbox" id="us-all" title="Seleccionar todos los visibles"></th><th>Nombre</th><th>Correo</th><th>Perfil</th><th>Jefatura</th><th>Asignaciones</th><th></th></tr></thead><tbody id="us-body">${list.map(u => this.userRow(u)).join('')}</tbody></table></div></div>
       <div class="card"><h2><i class="fa-solid fa-right-left"></i> Traspasar evaluaciones entre docentes</h2><p class="muted">Úselo cuando un docente reemplaza a otro. Se traspasan todas sus evaluaciones (rendidas, pendientes y cerradas).</p>
         <div class="fgrid"><div class="field"><label>Desde (nombre en las evaluaciones)</label><select id="tr-from">${opts(this.teacherNames().map(([n, c]) => [n, `${titleCase(n)} (${c})`]), '', 'Seleccione…')}</select></div>
         <div class="field"><label>Hacia (docente destino)</label><select id="tr-to">${opts(DB.users.filter(u => u.role === 'docente').map(u => [u.name, titleCase(u.name)]), '', 'Seleccione…')}</select></div></div>
         <button class="btn" style="margin-top:12px" onclick="Admin.transfer(this)"><i class="fa-solid fa-right-left"></i> Traspasar</button></div>`;
+    const body = $('#us-body'), rows = () => [...body.querySelectorAll('tr')];
+    const filter = () => { const q = normP($('#us-q').value), r = $('#us-role').value; this.uf = { q: $('#us-q').value, role: r }; rows().forEach(tr => tr.hidden = !!((q && !tr.dataset.s.includes(q)) || (r && tr.dataset.r !== r))); };
+    $('#us-q').oninput = filter; $('#us-role').onchange = filter; filter();
+    $('#us-all').onchange = e => { rows().filter(tr => !tr.hidden).forEach(tr => { const c = tr.querySelector('[data-sel]'); c.checked = e.target.checked; e.target.checked ? this.sel.add(tr.dataset.id) : this.sel.delete(tr.dataset.id); }); this.bar(); };
+    body.addEventListener('change', e => {
+      const t = e.target, tr = t.closest('tr'); if (!tr) return;
+      if (t.dataset.sel) { t.checked ? this.sel.add(t.dataset.sel) : this.sel.delete(t.dataset.sel); this.bar(); return; }
+      if (t.dataset.f === 'role') { tr.dataset.r = t.value; tr.querySelector('[data-f=headTeacherOf]').disabled = t.value !== 'docente'; }
+    });
+    body.addEventListener('input', e => this.track(e)); body.addEventListener('change', e => { if (e.target.tagName === 'SELECT') this.track(e); });
+    this.bar();
+  },
+
+  /** Marca la fila como modificada si el valor cambió respecto de lo guardado. */
+  track(e) {
+    const t = e.target, f = t.dataset.f; if (!f) return;
+    const tr = t.closest('tr'), id = tr.dataset.id, u = DB.users.find(x => x.id === id); if (!u) return;
+    const orig = f === 'email' ? staffLocal(u.email) : (u[f] || ''), val = f === 'email' ? staffLocal(t.value) : t.value;
+    const row = this.dirty[id] = this.dirty[id] || {};
+    if (val === orig) delete row[f]; else row[f] = val;
+    if (f === 'role' && val !== 'docente') { row.headTeacherOf = ''; }
+    if (!Object.keys(row).length) delete this.dirty[id];
+    tr.classList.toggle('dirty', !!this.dirty[id]); this.bar();
+  },
+
+  bar() {
+    const box = $('#us-bar'); if (!box) return;
+    const nd = Object.keys(this.dirty).length, ns = this.sel.size;
+    box.innerHTML = (nd ? `<div class="bulkbar" style="background:#fff7e0;border-color:#f5b700"><div class="bb-count"><b>${nd}</b><span>usuario(s) con cambios sin guardar</span></div><button class="btn success" onclick="Admin.saveDirty(this)"><i class="fa-solid fa-floppy-disk"></i> Guardar todos los cambios</button><button class="btn" onclick="Admin.keep('users')">Descartar</button></div>` : '')
+      + (ns ? `<div class="bulkbar"><div class="bb-count"><b>${ns}</b><span>seleccionado(s)</span></div>
+        <button class="btn" onclick="Admin.selPass(this)"><i class="fa-solid fa-envelope"></i> Enviar clave nueva por correo</button>
+        <button class="btn" onclick="Admin.selForce(this)"><i class="fa-solid fa-lock"></i> Exigir cambio de clave</button>
+        <button class="btn danger" onclick="Admin.selDelete(this)"><i class="fa-solid fa-trash"></i> Eliminar</button>
+        <button class="btn sm ghost" onclick="Admin.clearSel()">Limpiar</button></div>` : '');
+  },
+  clearSel() { this.sel.clear(); $$('#us-body [data-sel]').forEach(c => c.checked = false); const a = $('#us-all'); if (a) a.checked = false; this.bar(); },
+
+  saveDirty(btn) {
+    const users = Object.entries(this.dirty).map(([id, f]) => ({ id, ...f }));
+    if (!users.length) return;
+    const bad = users.find(u => 'email' in u && u.email && !/^[a-z0-9._+-]+$/i.test(u.email));
+    if (bad) return UI.toast('Hay un correo con caracteres no válidos. Escriba solo lo anterior a la @.', 'error');
+    UI.busy(btn, async () => {
+      const r = await API.call('saveUsers', { users }); DB.users = r.users;
+      this.dirty = {};
+      $$('#us-body tr').forEach(tr => { tr.classList.remove('dirty'); const u = DB.users.find(x => x.id === tr.dataset.id); if (u) { tr.querySelector('[data-f=email]').value = staffLocal(u.email); tr.dataset.s = normP(u.name + ' ' + (u.email || '')); } });
+      this.bar(); UI.toast(`${users.length} usuario(s) actualizados.`, 'success');
+    });
+  },
+
+  /** Muestra a quién se envió la clave y, si no se pudo enviar, la clave para entregarla a mano. */
+  showCreds(items, errors, title) {
+    const rows = items.map(x => `<li><span><b>${esc(titleCase(x.name))}</b><br><small>${esc(x.email || 'sin correo')}</small></span>${x.sent ? '<span class="pill ok">Clave enviada por correo</span>' : `<span style="text-align:right"><span class="pill bad">${esc(x.reason || 'No enviado')}</span><br>Clave provisoria: <code style="font-size:1.05rem;font-weight:700">${esc(x.pass)}</code></span>`}</li>`).join('');
+    UI.modal({ title, wide: true, body: `${items.some(x => !x.sent) ? '<div class="notice warn" style="margin-bottom:10px"><b>Anote las claves provisorias</b> de quienes no recibieron el correo y entrégueselas: no se vuelven a mostrar. Cada persona deberá cambiarla al ingresar.</div>' : ''}<ul class="list">${rows || '<li class="muted">Sin elementos.</li>'}</ul>${(errors || []).length ? `<div class="notice bad" style="margin-top:10px"><b>No se pudieron crear:</b><br>${errors.map(esc).join('<br>')}</div>` : ''}` });
+  },
+
+  async bulkAdd() {
+    const v = await UI.form({ title: 'Agregar varios usuarios', wide: true, ok: 'Crear usuarios',
+      intro: 'Escriba o pegue <b>un usuario por línea</b>: <code>Nombre completo; correo; perfil</code>. El correo (solo lo anterior a la @) y el perfil son opcionales; si falta el perfil se usa el de abajo. Puede pegar desde Excel.',
+      fields: [
+        { name: 'list', label: 'Usuarios', type: 'textarea', full: true, required: true, placeholder: 'Ana Pérez Soto; ana.perez; docente\nLuis Rojas Díaz; luis.rojas\nCarla Soto Mena' },
+        { name: 'role', label: 'Perfil por defecto', type: 'select', value: 'docente', options: Object.entries(ROLE_LABELS) },
+        { name: 'send', label: 'Enviar a cada persona su clave provisoria por correo (debe cambiarla al ingresar)', type: 'check', value: true }] });
+    if (!v) return;
+    const roleOf = s => /^doc/i.test(s) ? 'docente' : /^asis/i.test(s) ? 'asistente' : /^insp/i.test(s) ? 'inspector' : /^(pie|equipo)/i.test(s) ? 'pie' : /^(admin|coord|utp)/i.test(s) ? 'admin' : '';
+    const users = v.list.split(/\r?\n/).map(l => l.split(/\t|;|,/).map(x => x.trim()).filter(Boolean)).filter(c => c.length).map(c => {
+      const u = { name: c[0], role: v.role, email: '' };
+      c.slice(1).forEach(x => { const r = roleOf(x); if (r) u.role = r; else if (!/\s/.test(x)) u.email = x; });
+      return u;
+    });
+    if (!users.length) return UI.toast('No se encontraron usuarios en el texto.', 'error');
+    UI.busy(null, async () => {
+      const r = await API.call('saveUsers', { users, sendMail: v.send }); DB.users = r.users;
+      this.keep('users'); this.showCreds(r.created || [], r.errors, `${(r.created || []).length} usuario(s) creados`);
+    });
+  },
+
+  async forceMode(mode, btn) {
+    const txt = mode === 'weak' ? 'Se exigirá crear una clave nueva, en su próximo ingreso, a quienes hoy usan <b>1234</b> u otra clave muy simple.' : 'Se exigirá crear una clave nueva, en su próximo ingreso, a <b>todos</b> los usuarios (usted no).';
+    if (!await UI.confirm('Exigir cambio de clave', txt, 'Exigir cambio', true)) return;
+    UI.busy(btn, async () => {
+      const r = await API.call('forceChange', { mode }); DB.users = r.users; this.keep('users');
+      UI.notice({ type: 'success', title: 'Cambio de clave exigido', html: r.count ? `Se exigió a <b>${r.count}</b> usuario(s):<br>${r.names.map(n => esc(titleCase(n))).join(', ')}` : 'Nadie necesitaba el cambio: todos ya tienen una clave segura o ya estaban marcados.' });
+    });
+  },
+  selForce(btn) {
+    UI.busy(btn, async () => { const r = await API.call('forceChange', { mode: 'ids', ids: [...this.sel] }); DB.users = r.users; this.keep('users'); UI.toast(`Cambio de clave exigido a ${r.count} usuario(s).`, 'success'); });
+  },
+  async selPass(btn) {
+    if (!await UI.confirm('Enviar clave nueva', `Se generará una <b>clave provisoria nueva</b> para ${this.sel.size} usuario(s) y se enviará a su correo. La clave anterior dejará de servir y deberán cambiarla al ingresar.`, 'Generar y enviar')) return;
+    UI.busy(btn, async () => { const r = await API.call('resetPasswords', { ids: [...this.sel] }); DB.users = r.users; this.keep('users'); this.showCreds(r.results, [], 'Claves provisorias enviadas'); });
+  },
+  async selDelete(btn) {
+    if (!await UI.confirm('Eliminar usuarios', `Se eliminará el acceso de <b>${this.sel.size}</b> usuario(s). Sus evaluaciones no se borran.`, 'Eliminar', true)) return;
+    UI.busy(btn, async () => { let last = null, n = 0; for (const id of [...this.sel]) { try { last = await API.call('deleteUser', { id }); n++; } catch (e) { UI.toast(e.message, 'error'); } } if (last) DB.users = last.users; this.sel.clear(); this.keep('users'); UI.toast(`${n} usuario(s) eliminados.`, 'success'); });
   },
   teacherNames() { const m = {}; DB.evaluations.forEach(e => { if (e.teacher) m[e.teacher] = (m[e.teacher] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]); },
   transfer(btn) {
     const from = $('#tr-from').value, to = $('#tr-to').value;
     if (!from || !to) return UI.toast('Seleccione el docente de origen y el de destino.', 'error');
     if (sameText(from, to)) return UI.toast('El origen y el destino son el mismo docente.', 'error');
-    UI.busy(btn, async () => { const n = await Act.transferTeacher(from, to); UI.toast(`${n} evaluación(es) traspasadas a ${titleCase(to)}.`, 'success'); this.users($('#ad-body')); });
+    UI.busy(btn, async () => { const n = await Act.transferTeacher(from, to); UI.toast(`${n} evaluación(es) traspasadas a ${titleCase(to)}.`, 'success'); this.keep('users'); });
   },
   async delUser(id) {
     const u = DB.users.find(x => x.id === id);
     if (!await UI.confirm('Eliminar usuario', `Se eliminará el acceso de <b>${esc(titleCase(u.name))}</b>. Sus evaluaciones no se borran.`, 'Eliminar', true)) return;
-    UI.busy(null, async () => { DB.users = (await API.call('deleteUser', { id })).users; this.users($('#ad-body')); });
+    UI.busy(null, async () => { DB.users = (await API.call('deleteUser', { id })).users; this.keep('users'); });
   },
   userForm(id) {
     const u = id ? DB.users.find(x => x.id === id) : { role: 'docente', assignments: [] };
@@ -101,7 +219,9 @@ const Admin = {
           <div class="field"><label>Correo institucional</label><div class="mailgrp"><input id="uf-mail" value="${esc(staffLocal(u.email))}" placeholder="nombre.apellido" autocomplete="off"><span>@andaliensur.cl</span></div><small>Escriba solo lo anterior a la @; el dominio se agrega solo. Se usa para avisarle de las pruebas que se le devuelven.</small></div>
           <div class="field"><label>Género (para el saludo «Estimado/Estimada»)</label><select id="uf-gender">${opts([['', `Automático según el nombre (${staffGender(u) === 'F' ? 'Femenino' : 'Masculino'})`], ['F', 'Femenino'], ['M', 'Masculino']], u.gender || '')}</select></div>
           <div class="field"><label>Perfil</label><select id="uf-role">${opts(Object.entries(ROLE_LABELS), u.role)}</select></div>
-          <div class="field"><label>Contraseña</label><input id="uf-pass" type="text" placeholder="${id ? 'Dejar vacío para no cambiarla' : 'Contraseña inicial'}"></div>
+          <div class="field"><label>Clave provisoria</label><input id="uf-pass" type="text" autocomplete="off" placeholder="${id ? 'Dejar vacío para no cambiarla' : 'Vacío = se genera una al azar'}"></div>
+          <label class="check"><input type="checkbox" id="uf-must" ${!id || u.mustChange ? 'checked' : ''}> Debe cambiar la clave al ingresar</label>
+          <label class="check"><input type="checkbox" id="uf-send" ${!id ? 'checked' : ''}> Enviar la clave por correo (si es nueva)</label>
           <div class="field" id="uf-lvl"><label>Nivel principal</label><select id="uf-level">${opts([['', 'Automático (según cursos)'], ['Básica', 'Enseñanza Básica'], ['Media', 'Enseñanza Media']], u.mainLevel || '')}</select></div>
           <div class="field" id="uf-head"><label>Profesor jefe de</label><select id="uf-hc">${opts(COURSES, u.headTeacherOf || '', 'Ninguno')}</select></div></div>
         <div id="uf-asg"><h3 style="margin-bottom:8px">Cursos y asignaturas que imparte</h3>
@@ -130,8 +250,14 @@ const Admin = {
     $('[data-ok]', d).onclick = e => UI.busy(e.currentTarget, async () => {
       const role = $('#uf-role', d).value, name = $('#uf-name', d).value.trim();
       if (!name) throw new Error('Escriba el nombre.');
-      const r = await API.call('saveUser', { user: { id: id || null, name, role, password: $('#uf-pass', d).value, email: staffLocal($('#uf-mail', d).value), gender: $('#uf-gender', d).value, assignments: asg, headTeacherOf: role === 'docente' ? ($('#uf-hc', d).value || null) : null, mainLevel: role === 'docente' ? ($('#uf-level', d).value || null) : null } });
-      DB.users = r.users; d.close(); UI.toast('Usuario guardado.', 'success'); this.users($('#ad-body'));
+      const typed = $('#uf-pass', d).value, sendMail = $('#uf-send', d).checked;
+      const r = await API.call('saveUser', { sendMail, user: { mustChange: $('#uf-must', d).checked, id: id || null, name, role, password: $('#uf-pass', d).value, email: staffLocal($('#uf-mail', d).value), gender: $('#uf-gender', d).value, assignments: asg, headTeacherOf: role === 'docente' ? ($('#uf-hc', d).value || null) : null, mainLevel: role === 'docente' ? ($('#uf-level', d).value || null) : null } });
+      DB.users = r.users; d.close(); this.keep('users');
+      const pass = r.generated || typed;
+      if (sendMail && pass && r.mail && !r.mail.sent) UI.notice({ type: 'error', title: 'Usuario guardado, pero no se pudo enviar el correo', html: `<b>${esc(r.mail.reason || '')}</b><br>Clave provisoria para entregar a mano: <code style="font-size:1.1rem;font-weight:700">${esc(pass)}</code>` });
+      else if (sendMail && pass) UI.toast('Usuario guardado y clave enviada por correo.', 'success');
+      else if (r.generated) UI.notice({ type: 'success', title: 'Usuario guardado', html: `Clave provisoria generada: <code style="font-size:1.1rem;font-weight:700">${esc(r.generated)}</code>. Debe cambiarla al ingresar.` });
+      else UI.toast('Usuario guardado.', 'success');
     });
   },
 
@@ -146,9 +272,9 @@ const Admin = {
   addSubject(btn) {
     const n = $('#sb-new').value.trim().toUpperCase(); if (!n) return;
     if (Cfg.subjects.includes(n)) return UI.toast('Esa asignatura ya existe.', 'error');
-    UI.busy(btn, async () => { await Act.saveConfig({ customSubjects: [...(DB.config.customSubjects || []), n] }); UI.toast('Asignatura añadida.', 'success'); this.subjects($('#ad-body')); });
+    UI.busy(btn, async () => { await Act.saveConfig({ customSubjects: [...(DB.config.customSubjects || []), n] }); UI.toast('Asignatura añadida.', 'success'); this.keep('subjects'); });
   },
-  delSubject(i) { UI.busy(null, async () => { const l = [...(DB.config.customSubjects || [])]; l.splice(i, 1); await Act.saveConfig({ customSubjects: l }); this.subjects($('#ad-body')); }); },
+  delSubject(i) { UI.busy(null, async () => { const l = [...(DB.config.customSubjects || [])]; l.splice(i, 1); await Act.saveConfig({ customSubjects: l }); this.keep('subjects'); }); },
 
   /* ---------- Imagen ---------- */
   brand(el) {
@@ -325,6 +451,8 @@ const Admin = {
   backup() { UI.download(`respaldo_evaluaciones_${D.today()}.json`, JSON.stringify({ exportado: new Date().toISOString(), students: DB.students, evaluations: DB.evaluations, users: DB.users, config: DB.config }, null, 1)); },
   async resetDemo() { if (await UI.confirm('Restablecer demo', 'Se borrarán los cambios hechos en este navegador y volverán los datos de ejemplo.', 'Restablecer', true)) { Mock.reset(); location.reload(); } }
 };
+
+
 
 
 

@@ -1,0 +1,21 @@
+﻿CÓMO SUBIR A GITHUB (Colegio Marina de Chile · Evaluaciones Pendientes)
+=======================================================================
+
+Esta carpeta contiene TODO lo que debe estar en el repositorio.
+
+1) Entre a su repositorio en github.com -> botón "Add file" -> "Upload files".
+2) Arrastre el CONTENIDO de esta carpeta (index.html, manifest.json, sw.js,
+   README.md, y las carpetas assets, css, icons, js, apps-script).
+   - Arrastre las cosas de adentro, no la carpeta "SUBIR A GITHUB" misma.
+   - Los archivos con el mismo nombre se reemplazan solos.
+3) Abajo escriba un mensaje (ej: "Bitácora y marcado masivo") y presione "Commit changes".
+4) En 1 o 2 minutos GitHub Pages publica la nueva versión. Si en el
+   computador no se ve el cambio, presione Ctrl + F5.
+
+IMPORTANTE
+- js/config.js YA TRAE la URL de su Apps Script. No la borre.
+- La carpeta apps-script NO se usa en GitHub: es solo respaldo. El archivo
+  Code.gs hay que pegarlo en Apps Script (Extensiones -> Apps Script) y luego
+  Implementar -> Administrar implementaciones -> Editar -> Nueva versión.
+- Quedó fuera a propósito la carpeta "herramientas" (migración de Firebase,
+  de uso local, no debe publicarse).
