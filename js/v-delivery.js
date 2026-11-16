@@ -107,6 +107,62 @@ const Delivery = {
     });
   },
 
+  /** Envío manual de evaluaciones pendientes a los estudiantes, para las fechas que se elijan y cuando se quiera. */
+  studentsModal() {
+    const today = D.today(), validMail = x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x || '');
+    const d = UI.modal({ title: '<i class="fa-solid fa-paper-plane" style="color:var(--brand)"></i> Enviar aviso de evaluaciones pendientes a los estudiantes', wide: true,
+      body: `<div class="notice" style="margin-bottom:12px">Elija las <b>fechas de citación</b> que quiere avisar y envíelo cuando usted decida: no hace falta esperar al jueves. Cada estudiante recibe solo sus evaluaciones de ese rango.</div>
+        <div class="chips" style="margin-bottom:12px">${[['hoy', 'Hoy'], ['manana', 'Mañana'], ['semana', 'Esta semana'], ['prox', 'Próxima semana'], ['7d', 'Próximos 7 días']].map(([k, l]) => `<button type="button" class="btn sm" data-p="${k}">${l}</button>`).join('')}</div>
+        <div class="fgrid" style="margin-bottom:12px">
+          <div class="field"><label>Citadas desde</label><input type="date" id="sm-from" value="${D.add(today, 1)}"></div>
+          <div class="field"><label>Hasta</label><input type="date" id="sm-to" value="${D.add(today, 1)}"></div>
+          <div class="field"><label>Ciclo</label><select id="sm-cy">${opts(CYCLES.map(c => c.name), '', 'Todos')}</select></div>
+          <div class="field"><label>Curso</label><select id="sm-co">${opts(COURSES, '', 'Todos')}</select></div></div>
+        <div id="sm-list"></div>`,
+      footer: `<button class="btn" data-no>Cerrar</button><button class="btn primary" data-send disabled><i class="fa-solid fa-paper-plane"></i> Enviar</button>` });
+    const $$d = s => [...d.querySelectorAll(s)], q = s => d.querySelector(s);
+    const range = p => {
+      const dow = D.parse(today).getDay(), mon = D.add(today, ((8 - dow) % 7) || 7);
+      return { hoy: [today, today], manana: [D.add(today, 1), D.add(today, 1)], semana: [today, D.endWeek(today)], prox: [mon, D.add(mon, 6)], '7d': [today, D.add(today, 7)] }[p];
+    };
+    const groups = () => {
+      const from = q('#sm-from').value, to = q('#sm-to').value, cy = q('#sm-cy').value, co = q('#sm-co').value, by = new Map();
+      DB.evaluations.filter(e => e.status === ST.PEND && e.citationDate && e.citationDate >= from && e.citationDate <= to && !isWithdrawn(e) && (!cy || cycleOf(e.course) === cy) && (!co || e.course === co)).forEach(e => {
+        const k = e.course + '||' + e.studentName; if (!by.has(k)) by.set(k, { key: k, name: e.studentName, course: e.course, list: [] }); by.get(k).list.push(e);
+      });
+      return [...by.values()].map(g => { const st = studentOf(g.name, g.course); g.mail = [studentEmail(st), st && st.guardianEmail].filter(validMail); return g; })
+        .sort((a, b) => COURSES.indexOf(a.course) - COURSES.indexOf(b.course) || a.name.localeCompare(b.name, 'es'));
+    };
+    const updateBtn = () => { const n = $$d('.sm-cb:checked').length; const b = q('[data-send]'); b.disabled = !n; b.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Enviar a ${n} estudiante(s)`; };
+    const render = () => {
+      const from = q('#sm-from').value, to = q('#sm-to').value;
+      if (!from || !to || to < from) { q('#sm-list').innerHTML = '<div class="notice warn">Indique un rango de fechas válido.</div>'; updateBtn(); return; }
+      const g = groups(), total = g.reduce((n, x) => n + x.list.length, 0);
+      q('#sm-list').innerHTML = g.length ? `<div class="notice ok" style="margin-bottom:10px"><b>${g.length}</b> estudiante(s) con <b>${total}</b> evaluación(es) citadas entre el <b>${D.fmt(from)}</b> y el <b>${D.fmt(to)}</b>. Desmarque a quien no quiera avisar.</div>
+        <div class="table-wrap" style="max-height:40vh"><table class="tbl"><thead><tr><th style="width:34px"><input type="checkbox" id="sm-all" checked></th><th>Estudiante</th><th>Evaluaciones</th><th>Recibirá el correo en</th></tr></thead><tbody>
+        ${g.map(x => `<tr><td><input type="checkbox" class="sm-cb" value="${esc(x.key)}" ${x.mail.length ? 'checked' : 'disabled'}></td><td><b>${esc(fmtName(x.name))}</b><br><small>${esc(x.course)}</small></td>
+          <td>${x.list.map(e => `${subjBadge(e.subject)} <small>${D.fmt(e.citationDate)}</small>`).join('<br>')}</td>
+          <td>${x.mail.length ? x.mail.map(m => `<i class="fa-regular fa-envelope"></i> ${esc(m)}`).join('<br>') : '<span class="pill bad">Sin correo</span> <small>Agregue el RUT del estudiante</small>'}</td></tr>`).join('')}</tbody></table></div>`
+        : '<div class="empty"><i class="fa-regular fa-calendar-xmark"></i>No hay evaluaciones pendientes citadas en ese rango.</div>';
+      const all = q('#sm-all'); if (all) all.onchange = e => { $$d('.sm-cb:not(:disabled)').forEach(c => c.checked = e.target.checked); updateBtn(); };
+      $$d('.sm-cb').forEach(c => c.onchange = updateBtn); updateBtn();
+    };
+    $$d('[data-p]').forEach(b => b.onclick = () => { const [f, t2] = range(b.dataset.p); q('#sm-from').value = f; q('#sm-to').value = t2; render(); });
+    ['#sm-from', '#sm-to', '#sm-co'].forEach(s => q(s).onchange = render);
+    q('#sm-cy').onchange = () => { const c = q('#sm-cy').value; q('#sm-co').innerHTML = opts(c ? CYCLES.find(x => x.name === c).courses : COURSES, '', 'Todos'); render(); };
+    q('[data-no]').onclick = () => d.close();
+    q('[data-send]').onclick = e => UI.busy(e.currentTarget, async () => {
+      const keys = $$d('.sm-cb:checked').map(c => c.value), from = q('#sm-from').value, to = q('#sm-to').value;
+      if (!await UI.confirm('Confirmar envío', `Se enviará el aviso a <b>${keys.length}</b> estudiante(s) con sus evaluaciones citadas entre el <b>${D.fmt(from)}</b> y el <b>${D.fmt(to)}</b>.`, 'Enviar ahora')) return;
+      await DB.flush();
+      const r = await API.call('sendStudents', { from, to, keys });
+      if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info');
+      d.close();
+      UI.notice({ type: r.noMail ? 'warn' : 'success', title: `Aviso enviado: ${r.sent} correo(s)${r.noMail ? ` · ${r.noMail} sin enviar` : ''}`,
+        html: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(fmtName(x.name))}</b> <small>${esc(x.course)} · ${x.count} evaluación(es)</small></span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado' : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` });
+    });
+    render();
+  },
   /** Lista de lo que aún sigue pendiente, por docente. */
   pendingModal() {
     const gs = this.pendingGroups(), total = gs.reduce((n, g) => n + g.pend.length, 0);
@@ -157,6 +213,7 @@ PDF.delivery = function (groups) {
   });
   doc.save(`Ficha_entrega_docentes_${D.today()}.pdf`);
 };
+
 
 
 

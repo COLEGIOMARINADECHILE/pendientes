@@ -163,6 +163,7 @@ const Mock = {
         this.save(d); return { users: d.users.map(pub) };
       }
       case 'deleteUser': d.users = d.users.filter(x => x.id !== p.id); this.save(d); return { users: d.users.map(pub) };
+      case 'sendStudents': me(); return { sent: 0, noMail: 0, results: [], demo: true };
       case 'notifyExcluded': me(); return { results: [], demo: true };
       case 'previewTeacher': me(); return { html: '<p style="font-family:sans-serif;padding:20px">La vista previa del correo está disponible al conectar con Apps Script.</p>' };
       case 'notifyTeachers': me(); return { results: [], demo: true };
@@ -184,5 +185,6 @@ const Mock = {
 
 
 window.addEventListener('beforeunload', e => { if (DB.pending > 0) { e.preventDefault(); e.returnValue = ''; } });
+
 
 

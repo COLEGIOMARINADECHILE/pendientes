@@ -35,6 +35,7 @@ const Pending = {
         <div class="actions">
           ${Auth.isAdmin() ? '<button class="btn success" onclick="App.go(\'register\')"><i class="fa-solid fa-plus"></i> Registrar</button>' : ''}
           <button class="btn" onclick="Pending.reload(this)"><i class="fa-solid fa-rotate"></i> Actualizar</button>
+          ${Auth.isAdmin() ? '<button class="btn primary" onclick="Delivery.studentsModal()" title="Envía por correo a los estudiantes sus evaluaciones pendientes, para las fechas y el momento que elija"><i class="fa-solid fa-paper-plane"></i> Avisar a estudiantes</button>' : ''}
           <button class="btn" onclick="Pending.printModal('firmas')"><i class="fa-solid fa-clipboard-user"></i> Lista de firmas</button>
           <button class="btn" onclick="Pending.printModal('cartas')"><i class="fa-solid fa-envelope-open-text"></i> Citaciones por curso</button>
           <button class="btn" onclick="Pending.printModal('lista')"><i class="fa-solid fa-file-pdf"></i> Listado PDF</button>
@@ -274,6 +275,7 @@ const Pending = {
     else PDF.pending(evs, { text, scope }, v.mode);
   }
 };
+
 
 
 

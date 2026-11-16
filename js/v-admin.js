@@ -217,6 +217,7 @@ const Admin = {
         <div class="actions"><button class="btn" onclick="Admin.previewMail('weekly')"><i class="fa-regular fa-eye"></i> Ver correo semanal</button>
           <button class="btn" onclick="Admin.previewMail('new')"><i class="fa-regular fa-eye"></i> Ver aviso de evaluación nueva</button>
           <button class="btn" onclick="Admin.testMail(this)"><i class="fa-solid fa-paper-plane"></i> Enviarme una prueba</button>
+          <button class="btn primary" onclick="Delivery.studentsModal()"><i class="fa-solid fa-paper-plane"></i> Enviar aviso a estudiantes (elegir fechas)</button>
           <button class="btn danger" onclick="Admin.sendNow(this)"><i class="fa-solid fa-bolt"></i> Enviar ahora a todos</button></div>
         <small style="display:block;margin-top:12px">La prueba llega solo a la cuenta de Google dueña del Apps Script. Para que el jueves se envíe a la hora correcta, en Apps Script → Configuración del proyecto elija la zona horaria <b>(GMT-03:00) Santiago</b>.</small></div>`;
   },
@@ -324,6 +325,7 @@ const Admin = {
   backup() { UI.download(`respaldo_evaluaciones_${D.today()}.json`, JSON.stringify({ exportado: new Date().toISOString(), students: DB.students, evaluations: DB.evaluations, users: DB.users, config: DB.config }, null, 1)); },
   async resetDemo() { if (await UI.confirm('Restablecer demo', 'Se borrarán los cambios hechos en este navegador y volverán los datos de ejemplo.', 'Restablecer', true)) { Mock.reset(); location.reload(); } }
 };
+
 
 
 

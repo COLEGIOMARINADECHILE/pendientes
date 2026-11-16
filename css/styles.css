@@ -477,3 +477,20 @@ dialog.popup{width:min(520px,94vw);border-radius:20px}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(214,61,61,.35)}50%{box-shadow:0 0 0 10px rgba(214,61,61,0)}}
 @media(max-width:1000px){.pt-layout{grid-template-columns:1fr}.pt-side{position:static}}
 @media(max-width:560px){.pd-card{flex-wrap:wrap}.pd-count{width:100%;flex-direction:row;border-left:0;border-top:1px dashed var(--line);justify-content:flex-start;gap:14px}.pd-count .ring{width:56px;height:56px}.pd-count .ring b{font-size:1.2rem}}
+
+/* ===== Portal: título de pendientes destacado, rendidas compactas, tarjeta "próxima" legible ===== */
+.pt-h-main{display:flex;align-items:center;gap:14px;margin:0 0 14px;padding:14px 18px;border-radius:18px;font-size:1.55rem;font-weight:900;color:#7a4a00;background:linear-gradient(90deg,#fff1cc,#fff9e8);border:1px solid #f6d98b;border-left:8px solid var(--sun)}
+.pt-h-ic{width:46px;height:46px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:1.3rem;color:#fff;background:linear-gradient(135deg,#cf8208,#f5b700);box-shadow:0 8px 16px -8px #cf8208}
+.pt-h-n{margin-left:auto;min-width:40px;height:40px;padding:0 12px;border-radius:999px;display:grid;place-items:center;background:#cf8208;color:#fff;font-size:1.2rem}
+.pt-h-sub{margin:52px 0 10px;padding-top:22px;border-top:2px dashed var(--line);font-size:.95rem;color:var(--muted)}
+.dn-grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.dn-card{padding:6px 10px;gap:8px;border-radius:12px;border-left-width:4px}
+.dn-card .pd-ic{width:26px;height:26px;font-size:.72rem}
+.dn-card b{font-size:.8rem;line-height:1.2}.dn-card small{font-size:.68rem;display:block}
+.dn-check{font-size:1rem}
+.pd-card{margin-top:16px}
+.pt-next{background:linear-gradient(135deg,#1f6b0a,#3d8f22);box-shadow:0 12px 24px -14px #1f6b0a}
+.pt-next small{color:#fff;opacity:1;font-weight:900;letter-spacing:.08em;font-size:.72rem}
+.pt-next b{color:#fff;font-size:1.2rem;margin:2px 0}
+.pt-next span{color:#f2fff0;font-weight:700}
+.pt-next span b{display:inline;font-size:inherit;margin:0;background:rgba(255,255,255,.25);padding:0 8px;border-radius:999px}

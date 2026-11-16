@@ -196,15 +196,15 @@ const Portal = {
             <div class="pt-stat pend"><i class="fa-solid fa-hourglass-half"></i><b>${pend.length}</b><span>pendiente${pend.length === 1 ? '' : 's'}</span></div>
             <div class="pt-stat done"><i class="fa-solid fa-circle-check"></i><b>${done.length}</b><span>rendida${done.length === 1 ? '' : 's'}</span></div>
           </div>
-          ${proxima ? `<div class="pt-next"><i class="fa-solid fa-rocket"></i><div><small>Tu próxima evaluación</small><b>${esc(proxima.subject)}</b><span>${nProx === 0 ? '¡Es hoy!' : nProx === 1 ? '¡Es mañana!' : `Faltan <b>${nProx}</b> días`} · ${D.long(proxima.citationDate)}</span></div></div>` : ''}
+          ${proxima ? `<div class="pt-next"><i class="fa-solid fa-rocket"></i><div><small>TU PRÓXIMA EVALUACIÓN</small><b>${esc(proxima.subject)}</b><span>${nProx === 0 ? '¡Es hoy!' : nProx === 1 ? '¡Es mañana!' : `Faltan <b>${nProx}</b> días`} · ${D.long(proxima.citationDate)}</span></div></div>` : ''}
         </aside>
         <section class="pt-content">
-          <h3 class="pt-h"><i class="fa-solid fa-hourglass-half" style="color:var(--warn)"></i> Evaluaciones pendientes</h3>
+          <h3 class="pt-h pt-h-main"><span class="pt-h-ic"><i class="fa-solid fa-hourglass-half"></i></span><span>Evaluaciones pendientes</span><span class="pt-h-n">${pend.length}</span></h3>
           ${pend.length ? `<p class="muted" style="margin:0 0 4px">Ordenadas desde la fecha más próxima.</p>${pend.map(pendCard).join('')}`
             : `<div class="pt-empty"><i class="fa-solid fa-face-smile-beam"></i><b>¡Estás al día!</b><span>No tienes evaluaciones pendientes.</span></div>`}
-          <h3 class="pt-h" style="margin-top:26px"><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> Evaluaciones rendidas</h3>
+          <h3 class="pt-h pt-h-sub"><i class="fa-solid fa-circle-check" style="color:var(--ok)"></i> Evaluaciones rendidas</h3>
           ${done.length ? `<div class="dn-grid">${done.map(doneCard).join('')}</div>` : '<p class="muted">Aún no hay evaluaciones rendidas registradas.</p>'}
-          ${other.length ? `<h3 class="pt-h" style="margin-top:26px"><i class="fa-solid fa-folder-closed" style="color:var(--vio)"></i> Otras situaciones</h3><div class="dn-grid">${other.map(otherCard).join('')}</div>` : ''}
+          ${other.length ? `<h3 class="pt-h pt-h-sub"><i class="fa-solid fa-folder-closed" style="color:var(--vio)"></i> Otras situaciones</h3><div class="dn-grid">${other.map(otherCard).join('')}</div>` : ''}
         </section>
       </div></div>`;
     el.hidden = false; el.scrollTop = 0;
@@ -275,6 +275,7 @@ const Pwa = {
   }
 };
 document.addEventListener('DOMContentLoaded', () => Pwa.init());
+
 
 
 
