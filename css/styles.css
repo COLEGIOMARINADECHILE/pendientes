@@ -329,3 +329,28 @@ body{overflow-x:hidden}
 @media(max-width:520px){.roles{grid-template-columns:repeat(2,1fr)}.roles .wide{grid-column:span 2}.names{grid-template-columns:1fr 1fr}}
 
 .bulkbar .btn{white-space:normal;text-align:center;line-height:1.25}
+
+/* ===== Portada: nombres amplios y legibles ===== */
+.login-card{width:min(1120px,100%);grid-template-columns:.8fr 1.5fr}
+.login-brand{padding:28px 26px}
+.login-form{padding:24px 34px;gap:10px}
+.roles{grid-template-columns:repeat(5,1fr);gap:8px}
+.roles button{padding:10px 4px;gap:4px}
+.roles .wide{grid-column:auto;flex-direction:column;padding:10px 4px;gap:4px}
+.roles button b{font-size:.74rem;line-height:1.15}
+.names{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-height:clamp(170px,calc(100dvh - 430px),460px);min-height:170px;padding:3px 4px 3px 2px}
+.names button{padding:10px 14px;gap:12px;min-height:56px;border-radius:16px;align-items:center}
+.names .av{width:40px;height:40px;font-size:.9rem}
+.names .nm{font-size:.95rem;font-weight:700;line-height:1.2;white-space:normal;overflow-wrap:anywhere}
+.names-search{padding:9px 14px;border-radius:999px;margin-bottom:2px}
+@media(max-width:1100px){.names{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:900px){.login-card{grid-template-columns:1fr}.names{max-height:300px}.roles{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:520px){.names{grid-template-columns:1fr}.roles{grid-template-columns:repeat(2,1fr)}}
+@media(max-height:720px){.names{max-height:clamp(120px,calc(100dvh - 400px),300px);min-height:120px}.names button{min-height:48px;padding:7px 12px}.names .av{width:34px;height:34px}}
+
+.names{max-height:clamp(150px,calc(100dvh - 540px),440px);min-height:150px}
+.login-form{max-height:calc(100dvh - 24px);overflow-y:auto}
+
+.login-card{max-height:calc((100dvh - 24px) / var(--ui-zoom,1))}
+.login-form{max-height:calc((100dvh - 24px) / var(--ui-zoom,1))}
+.names{max-height:clamp(150px,calc((100dvh - 540px) / var(--ui-zoom,1)),440px)}

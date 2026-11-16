@@ -227,3 +227,6 @@ const staffGender = u => {
   return /a$/.test(f) ? 'F' : 'M';
 };
 const staffGreeting = u => `${staffGender(u) === 'F' ? 'Estimada' : 'Estimado'} ${titleCase(u && u.name)}`;
+
+/* Compara nombres sin tildes, mayúsculas ni espacios de más */
+const normP = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();

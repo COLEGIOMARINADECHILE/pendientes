@@ -61,8 +61,8 @@ async function initLogin() {
   });
   let users = [];
   try {
-    const [bnd, pu] = await Promise.all([API.call('branding').catch(() => ({})), API.call('publicUsers')]);
-    Object.assign(Brand, { banner: bnd.banner || '', logo: bnd.logo || '', badges: bnd.badges || [] }); App.applyBrand(); users = pu.users;
+    const pu = await API.call('boot').catch(() => API.call('publicUsers'));   // una sola llamada: usuarios + imágenes
+    Object.assign(Brand, { banner: pu.banner || '', logo: pu.logo || '', badges: pu.badges || [] }); App.applyBrand(); users = pu.users;
     if (API.demo) status.innerHTML = '<span class="pill warn">MODO DEMO</span> Administrador: <b>ADMINISTRADOR / admin</b> · Docente: <b>ANA PEREZ / 1234</b> · RUT de prueba: <b>24111222-3</b>';
   } catch (e) { status.textContent = 'No se pudo conectar con el servidor: ' + e.message; }
 
@@ -76,9 +76,11 @@ async function initLogin() {
     if (role === 'docente' && lvl) l = l.filter(u => !u.level || u.level === lvl);
     l.sort((a, b) => a.name.localeCompare(b.name, 'es'));
     $('#lg-name').value = l.length === 1 ? l[0].id : '';
+    const sb = $('#lg-search'); sb.hidden = l.length < 9; sb.value = '';
     $('#lg-names').innerHTML = l.length ? l.map(u => `<button type="button" data-id="${esc(u.id)}" class="${l.length === 1 ? 'on' : ''}"><span class="av">${esc(initials(u.name))}</span><span class="nm">${esc(titleCase(u.name))}</span></button>`).join('') : '<p class="muted" style="margin:6px">No hay usuarios en este perfil.</p>';
     $$('#lg-names button').forEach(b => b.onclick = () => { $$('#lg-names button').forEach(x => x.classList.toggle('on', x === b)); $('#lg-name').value = b.dataset.id; $('#lg-pass').focus(); });
   };
+  $('#lg-search').oninput = e => { const q = normP(e.target.value); $$('#lg-names button').forEach(b => b.hidden = q && !normP(b.textContent).includes(q)); };
   $('#lg-role').onchange = fill; $('#lg-level').onchange = fill;
   $$('#lg-levels button').forEach(b => b.onclick = () => { $$('#lg-levels button').forEach(x => x.classList.toggle('on', x === b)); $('#lg-level').value = b.dataset.l; fill(); });
   $$('#lg-roles button').forEach(b => b.onclick = () => { $$('#lg-roles button').forEach(x => x.classList.toggle('on', x === b)); $('#lg-role').value = b.dataset.r; $('#lg-level').value = ''; $$('#lg-levels button').forEach(x => x.classList.toggle('on', !x.dataset.l)); fill(); });
@@ -89,7 +91,7 @@ async function initLogin() {
     UI.busy($('#lg-btn'), async () => {
       const r = await API.call('login', { userId: $('#lg-name').value, password: $('#lg-pass').value });
       API.setSession(r.token, r.user);
-      await bootApp();
+      await bootApp(r.all);
     });
   };
   $('#f-family').onsubmit = e => {
@@ -98,10 +100,14 @@ async function initLogin() {
   };
 }
 
-async function bootApp() {
-  await DB.load();
-  const b = await API.call('branding').catch(() => ({}));
-  Object.assign(Brand, { banner: b.banner || '', logo: b.logo || '', badges: b.badges || [] });
+async function bootApp(pre) {
+  if (pre) {   // el servidor ya entregó todo junto con la sesión: sin llamadas extra
+    DB.hydrate(pre);
+    if (pre.branding) Object.assign(Brand, pre.branding);
+  } else {
+    const [, b] = await Promise.all([DB.load(), API.call('branding').catch(() => ({}))]);
+    Object.assign(Brand, { banner: b.banner || '', logo: b.logo || '', badges: b.badges || [] });
+  }
   await App.enter();
 }
 
@@ -180,5 +186,7 @@ const Pwa = {
   }
 };
 document.addEventListener('DOMContentLoaded', () => Pwa.init());
+
+
 
 

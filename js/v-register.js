@@ -244,6 +244,7 @@ const Register = {
     if ($('#rg-mail').checked) {
       const ids = ops.filter(o => o.data.status === ST.PEND).map(o => o.id);
       try {
+        await DB.flush();
         const m = await API.call('notify', { evalIds: ids });
         mailNote = m.demo ? 'Modo demo: no se envían correos.' : `Correo enviado a ${m.sent} estudiante(s)${m.noMail ? `; ${m.noMail} sin correo registrado` : ''}.`;
       } catch (e) { mailNote = 'Las evaluaciones se guardaron, pero no se pudo enviar el correo: ' + e.message; }
@@ -256,4 +257,5 @@ const Register = {
     this.mount($('#view'));
   }
 };
+
 

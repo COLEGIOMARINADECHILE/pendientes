@@ -4,13 +4,13 @@ const Delivery = {
   groups(ids) {
     const by = {};
     ids.map(i => DB.get('evaluations', i)).filter(Boolean).forEach(e => {
-      const k = String(e.teacher || '').trim().toUpperCase();
+      const k = normP(e.teacher);
       (by[k] = by[k] || { teacher: e.teacher || 'SIN DOCENTE', done: [] }).done.push(e);
     });
     return Object.values(by).map(g => this.fill(g)).sort((a, b) => b.done.length - a.done.length || a.teacher.localeCompare(b.teacher, 'es'));
   },
   fill(g) {
-    g.pend = DB.evaluations.filter(e => e.status === ST.PEND && sameText(e.teacher, g.teacher) && !isWithdrawn(e))
+    g.pend = DB.evaluations.filter(e => e.status === ST.PEND && normP(e.teacher) === normP(g.teacher) && !isWithdrawn(e))
       .sort((a, b) => a.course.localeCompare(b.course, 'es', { numeric: true }) || a.studentName.localeCompare(b.studentName, 'es'));
     const u = DB.users.find(x => sameText(x.name, g.teacher));
     g.email = (u && u.email) || '';
@@ -47,6 +47,7 @@ const Delivery = {
   },
 
   async send(ids, gs) {
+    await DB.flush();
     const r = await API.call('notifyTeachers', { evalIds: ids });
     if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info');
     const okTeachers = new Set(r.results.filter(x => x.sent).map(x => String(x.teacher).trim().toUpperCase()));
@@ -56,10 +57,10 @@ const Delivery = {
   },
 
   /** Historial completo por docente (rendidas, pendientes, otras) con envío por correo. */
-  historyModal() {
+  historyModal(only) {
     const by = {};
-    DB.evaluations.filter(e => !isWithdrawn(e) && e.teacher).forEach(e => { const k = String(e.teacher).trim().toUpperCase(); (by[k] = by[k] || { teacher: e.teacher, done: 0, pend: 0, other: 0 })[e.status === ST.DONE ? 'done' : e.status === ST.PEND ? 'pend' : 'other']++; });
-    const rows = Object.values(by).sort((a, b) => a.teacher.localeCompare(b.teacher, 'es')).map(g => { const u = DB.users.find(x => sameText(x.name, g.teacher)); return { ...g, email: (u && u.email) || '' }; });
+    DB.evaluations.filter(e => !isWithdrawn(e) && e.teacher).forEach(e => { const k = normP(e.teacher); (by[k] = by[k] || { teacher: e.teacher, done: 0, pend: 0, other: 0 })[e.status === ST.DONE ? 'done' : e.status === ST.PEND ? 'pend' : 'other']++; });
+    const rows = Object.values(by).filter(g => !only || normP(g.teacher) === normP(only)).sort((a, b) => a.teacher.localeCompare(b.teacher, 'es')).map(g => { const u = DB.users.find(x => sameText(x.name, g.teacher)); return { ...g, email: (u && u.email) || '' }; });
     const con = rows.filter(r => r.email);
     const d = UI.modal({ title: '<i class="fa-solid fa-paper-plane" style="color:var(--brand)"></i> Enviar historial a cada docente', wide: true,
       body: `<div class="notice" style="margin-bottom:12px">Cada docente recibe por correo el resumen de <b>todas sus evaluaciones</b>: rendidas, pendientes y otras situaciones, con su nivel de rendición.</div>
@@ -67,7 +68,7 @@ const Delivery = {
         ${rows.map((r, i) => `<tr><td><b>${esc(titleCase(r.teacher))}</b></td><td><span class="pill ok">${r.done}</span></td><td><span class="pill warn">${r.pend}</span></td><td>${r.other}</td>
           <td>${r.email ? esc(r.email) : '<span class="pill bad">Sin correo</span>'}</td><td>${r.email ? `<button class="btn sm" data-one="${i}"><i class="fa-solid fa-envelope"></i> Enviar</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`,
       footer: `<button class="btn" data-no>Cerrar</button><button class="btn primary" data-all ${con.length ? '' : 'disabled'}><i class="fa-solid fa-paper-plane"></i> Enviar a ${con.length} docente(s)</button>` });
-    const run = async (names, btn) => UI.busy(btn, async () => { const r = await API.call('notifyTeachers', { kind: 'history', teachers: names }); if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info'); UI.modal({ title: 'Resultado del envío', body: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b></span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` }); });
+    const run = async (names, btn) => UI.busy(btn, async () => { await DB.flush(); const r = await API.call('notifyTeachers', { kind: 'history', teachers: names }); if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info'); UI.modal({ title: 'Resultado del envío', body: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b></span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` }); });
     $('[data-no]', d).onclick = () => d.close();
     $('[data-all]', d).onclick = e => run(con.map(r => r.teacher), e.currentTarget);
     $$('[data-one]', d).forEach(b => b.onclick = e => run([rows[+b.dataset.one].teacher], e.currentTarget));
@@ -86,7 +87,7 @@ const Delivery = {
     $('[data-no]', d).onclick = () => d.close();
     $('[data-pdf]', d).onclick = () => PDF.delivery(rows);
     $('[data-send]', d).onclick = e => UI.busy(e.currentTarget, async () => {
-      const r = await API.call('notifyTeachers', { kind: 'pending', teachers: con.map(g => g.teacher) });
+      await DB.flush(); const r = await API.call('notifyTeachers', { kind: 'pending', teachers: con.map(g => g.teacher) });
       d.close(); if (r.demo) return UI.toast('Modo demo: no se envían correos.', 'info');
       UI.modal({ title: 'Resultado del envío', body: `<ul class="list">${r.results.map(x => `<li><span><b>${esc(titleCase(x.teacher))}</b> · ${x.pending} pendiente(s)</span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Enviado a ' + esc(x.to) : esc(x.reason || 'No enviado')}</span></li>`).join('')}</ul>` });
     });
@@ -136,5 +137,8 @@ PDF.delivery = function (groups) {
   });
   doc.save(`Ficha_entrega_docentes_${D.today()}.pdf`);
 };
+
+
+
 
 

@@ -30,8 +30,12 @@ const Brand = { banner: '', logo: '' };
 const DB = {
   users: [], students: [], evaluations: [], config: {}, idx: new Map(),
 
-  async load() {
-    const r = await API.call('loadAll');
+  queue: Promise.resolve(), pending: 0,
+
+  /** Espera a que se terminen de guardar los cambios en curso y recarga todo desde el servidor. */
+  async load() { await this.queue; return this._load(); },
+  async _load() { return this.hydrate(await API.call('loadAll')); },
+  hydrate(r) {
     this.users = r.users || [];
     this.students = (r.students || [])
       .map(s => ({ gender: 'O', status: 'Activo', ...s, name: String(s.name || '').trim().toUpperCase(), course: normCourse(s.course) }))
@@ -40,18 +44,22 @@ const DB = {
       .map(e => ({ ...e, studentName: String(e.studentName || '').trim().toUpperCase(), course: normCourse(e.course) }));
     this.config = r.config || {};
     this.reindex();
-  },
-  reindex() { this.idx = new Map(this.students.map(s => [s.course + '||' + s.name, s])); },
+  },  reindex() { this.idx = new Map(this.students.map(s => [s.course + '||' + s.name, s])); },
   col(c) { return c === 'students' ? this.students : c === 'evaluations' ? this.evaluations : null; },
   get(c, id) { return this.col(c).find(x => x.id === id); },
 
-  /** Aplica el cambio de inmediato en pantalla y lo envía al servidor; si falla, recarga. */
-  async write(ops) {
+  /** El cambio se ve al instante en pantalla; el guardado en Google Sheets sigue en segundo plano, en orden.
+   *  Use `await DB.flush()` antes de pedirle algo al servidor que dependa de lo recién guardado. */
+  write(ops) {
     ops.forEach(o => this.apply(o));
-    try { await API.call('batch', { ops }); }
-    catch (e) { await this.load().catch(() => {}); throw e; }
+    this.pending++;
+    this.queue = this.queue
+      .then(() => API.call('batch', { ops }))
+      .catch(async e => { UI.toast('No se pudo guardar: ' + (e.message || e) + '. Se recargan los datos.', 'error', 9000); await this._load().catch(() => {}); if (typeof App !== 'undefined' && App.view) App.go(App.view); })
+      .finally(() => { this.pending--; });
+    return Promise.resolve();
   },
-  apply(o) {
+  flush() { return this.queue; },  apply(o) {
     if (o.c === 'settings') { Object.assign(this.config, o.data || {}); return; }
     const arr = this.col(o.c);
     const i = arr.findIndex(x => x.id === o.id);
@@ -126,6 +134,7 @@ const Mock = {
     const pub = u => ({ id: u.id, name: u.name, role: u.role, assignments: u.assignments || [], headTeacherOf: u.headTeacherOf || null, mainLevel: u.mainLevel || null, email: u.email || '' });
     const me = () => { const u = d.users.find(x => 'mock-' + x.id === token); if (!u) throw new Error('Sesión expirada.'); return u; };
     switch (action) {
+      case 'boot': { const u = this.run('publicUsers', p, token); return { users: u.users, banner: d.branding.banner || '', logo: d.branding.logo || '', badges: d.branding.badges || [] }; }
       case 'publicUsers': return { users: d.users.map(u => { const as = u.assignments || [], me = as.filter(a => /medio/i.test(a.course)).length; return { id: u.id, name: u.name, role: u.role, mainLevel: u.mainLevel || null, level: u.mainLevel || (as.length ? (me > as.length - me ? 'Media' : 'Básica') : '') }; }) };
       case 'branding': return { banner: d.branding.banner || '', logo: d.branding.logo || '', badges: d.branding.badges || [] };
       case 'login': {
@@ -167,3 +176,6 @@ const Mock = {
 
 
 
+
+
+window.addEventListener('beforeunload', e => { if (DB.pending > 0) { e.preventDefault(); e.returnValue = ''; } });
