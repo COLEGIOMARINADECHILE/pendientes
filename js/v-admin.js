@@ -132,7 +132,7 @@ const Admin = {
     box.innerHTML = (nd ? `<div class="bulkbar" style="background:#fff7e0;border-color:#f5b700"><div class="bb-count"><b>${nd}</b><span>usuario(s) con cambios sin guardar</span></div><button class="btn success" onclick="Admin.saveDirty(this)"><i class="fa-solid fa-floppy-disk"></i> Guardar todos los cambios</button><button class="btn" onclick="Admin.keep('users')">Descartar</button></div>` : '')
       + (ns ? `<div class="bulkbar"><div class="bb-count"><b>${ns}</b><span>seleccionado(s)</span></div>
         <button class="btn" onclick="Admin.selPass(this)"><i class="fa-solid fa-envelope"></i> Enviar clave nueva por correo</button>
-        <button class="btn" onclick="Admin.selForce(this)"><i class="fa-solid fa-lock"></i> Exigir cambio de clave</button>
+        <button class="btn" onclick="Admin.selForce(this)"><i class="fa-solid fa-lock"></i> Pedir cambio de clave (con correo)</button>
         <button class="btn danger" onclick="Admin.selDelete(this)"><i class="fa-solid fa-trash"></i> Eliminar</button>
         <button class="btn sm ghost" onclick="Admin.clearSel()">Limpiar</button></div>` : '');
   },
@@ -178,16 +178,22 @@ const Admin = {
     });
   },
 
-  async forceMode(mode, btn) {
-    const txt = mode === 'weak' ? 'Se exigirá crear una clave nueva, en su próximo ingreso, a quienes hoy usan <b>1234</b> u otra clave muy simple.' : 'Se exigirá crear una clave nueva, en su próximo ingreso, a <b>todos</b> los usuarios (usted no).';
-    if (!await UI.confirm('Exigir cambio de clave', txt, 'Exigir cambio', true)) return;
+  /** Pregunta si se envía el correo de aviso y exige el cambio de clave. */
+  async runForce(payload, intro, btn) {
+    const v = await UI.form({ title: 'Exigir cambio de clave', ok: 'Exigir cambio', intro, fields: [{ name: 'send', label: 'Enviar un correo a cada persona avisándole que debe cambiar su clave', type: 'check', value: true }] });
+    if (!v) return;
     UI.busy(btn, async () => {
-      const r = await API.call('forceChange', { mode }); DB.users = r.users; this.keep('users');
-      UI.notice({ type: 'success', title: 'Cambio de clave exigido', html: r.count ? `Se exigió a <b>${r.count}</b> usuario(s):<br>${r.names.map(n => esc(titleCase(n))).join(', ')}` : 'Nadie necesitaba el cambio: todos ya tienen una clave segura o ya estaban marcados.' });
+      const r = await API.call('forceChange', { ...payload, sendMail: v.send }); DB.users = r.users; this.keep('users');
+      if (!r.count) return UI.notice({ type: 'success', title: 'Sin cambios', html: 'Nadie necesitaba el cambio: todos ya tienen una clave segura o ya estaban marcados.' });
+      const mail = (r.results || []).map(x => `<li><span><b>${esc(titleCase(x.name))}</b><br><small>${esc(x.email || 'sin correo')}</small></span><span class="pill ${x.sent ? 'ok' : 'bad'}">${x.sent ? 'Correo enviado' : esc(x.reason || 'No enviado')}</span></li>`).join('');
+      UI.modal({ title: `Cambio de clave exigido a ${r.count} usuario(s)`, wide: true, body: `<div class="notice" style="margin-bottom:10px">Deberán crear una clave nueva en su próximo ingreso.${v.send ? '' : ' No se envió correo de aviso.'}</div>${mail ? `<ul class="list">${mail}</ul>` : `<p>${r.names.map(n => esc(titleCase(n))).join(', ')}</p>`}` });
     });
   },
+  forceMode(mode, btn) {
+    this.runForce({ mode }, mode === 'weak' ? 'Se exigirá crear una clave nueva, en su próximo ingreso, a quienes hoy usan <b>1234</b> u otra clave muy simple.' : 'Se exigirá crear una clave nueva, en su próximo ingreso, a <b>todos</b> los usuarios (usted no).', btn);
+  },
   selForce(btn) {
-    UI.busy(btn, async () => { const r = await API.call('forceChange', { mode: 'ids', ids: [...this.sel] }); DB.users = r.users; this.keep('users'); UI.toast(`Cambio de clave exigido a ${r.count} usuario(s).`, 'success'); });
+    this.runForce({ mode: 'ids', ids: [...this.sel] }, `Se exigirá crear una clave nueva, en su próximo ingreso, a los <b>${this.sel.size}</b> usuario(s) seleccionados.`, btn);
   },
   async selPass(btn) {
     if (!await UI.confirm('Enviar clave nueva', `Se generará una <b>clave provisoria nueva</b> para ${this.sel.size} usuario(s) y se enviará a su correo. La clave anterior dejará de servir y deberán cambiarla al ingresar.`, 'Generar y enviar')) return;
@@ -451,6 +457,7 @@ const Admin = {
   backup() { UI.download(`respaldo_evaluaciones_${D.today()}.json`, JSON.stringify({ exportado: new Date().toISOString(), students: DB.students, evaluations: DB.evaluations, users: DB.users, config: DB.config }, null, 1)); },
   async resetDemo() { if (await UI.confirm('Restablecer demo', 'Se borrarán los cambios hechos en este navegador y volverán los datos de ejemplo.', 'Restablecer', true)) { Mock.reset(); location.reload(); } }
 };
+
 
 
 

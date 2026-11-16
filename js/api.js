@@ -195,7 +195,8 @@ const Mock = {
       case 'forceChange': {
         me(); const names = [];
         d.users.forEach(u => { const hit = p.mode === 'weak' ? ['1', '12', '123', '1234', '12345', '123456', '0000', '1111', '1212'].includes(u.password) : p.mode === 'all' ? true : (p.ids || []).includes(u.id); if (hit && !u.mustChange) { u.mustChange = true; names.push(u.name); } });
-        this.save(d); return { users: d.users.map(pub), count: names.length, names };
+        this.save(d); const tg = d.users.filter(u => p.mode === 'ids' ? (p.ids || []).includes(u.id) : names.includes(u.name));
+        return { users: d.users.map(pub), count: p.mode === 'ids' ? tg.length : names.length, names: tg.map(u => u.name), results: p.sendMail ? tg.map(u => ({ name: u.name, email: u.email || '', sent: false, reason: 'Modo demo: no se envían correos' })) : [] };
       }
       case 'resetPasswords': {
         me(); const results = [];
