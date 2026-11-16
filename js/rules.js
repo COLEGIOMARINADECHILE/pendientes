@@ -233,3 +233,17 @@ const normP = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, 
 
 ST.EXCL = 'No considerada';
 const EXCLUDE_REASONS = ['Reposo médico prolongado', 'Evaluación anulada por el docente', 'Error de registro', 'Registro duplicado', 'Estudiante con adecuación curricular / PIE', 'Estudiante retirado o trasladado', 'Otro motivo'];
+
+/** Reglas de la clave (igual que en el servidor): 6+ caracteres, una letra y un número, sin secuencias. Devuelve el error o ''. */
+function passError(pw) {
+  pw = String(pw || '');
+  if (pw.length < 6) return 'La contraseña debe tener al menos 6 caracteres.';
+  if (!/[A-Za-z\u00C0-\u017F]/.test(pw) || !/\d/.test(pw)) return 'La contraseña debe tener al menos una letra y un número (no puede ser solo números como 123456).';
+  if (/(.)\1{3,}/.test(pw)) return 'No repita el mismo carácter 4 veces seguidas.';
+  const l = pw.toLowerCase();
+  for (let i = 0; i + 3 < l.length; i++) {
+    const a = l.charCodeAt(i), b = l.charCodeAt(i + 1), c = l.charCodeAt(i + 2), e = l.charCodeAt(i + 3);
+    if ((b - a === 1 && c - b === 1 && e - c === 1) || (a - b === 1 && b - c === 1 && c - e === 1)) return 'No use secuencias como 1234 o abcd.';
+  }
+  return '';
+}

@@ -55,12 +55,13 @@ const App = {
   /** Ventana que no se puede cerrar: obliga a reemplazar la clave provisoria. */
   forcePassword() {
     return new Promise(res => {
-      const d = UI.modal({ title: '<i class="fa-solid fa-lock" style="color:var(--brand)"></i> Cree su clave personal', body: '<p class="muted" style="margin:0 0 12px">Por seguridad debe reemplazar la clave provisoria antes de continuar. Use al menos 6 caracteres y evite claves simples como 1234.</p><div class="stack"><div class="field"><label>Clave nueva</label><input id="fp-1" type="password" autocomplete="new-password"></div><div class="field"><label>Repita la clave nueva</label><input id="fp-2" type="password" autocomplete="new-password"></div></div>', footer: '<button class="btn" data-out type="button">Cerrar sesión</button><button class="btn primary" data-ok type="button">Guardar y entrar</button>' });
+      const d = UI.modal({ title: '<i class="fa-solid fa-lock" style="color:var(--brand)"></i> Cree su clave personal', body: '<p class="muted" style="margin:0 0 12px">Por seguridad debe reemplazar la clave provisoria antes de continuar. Debe tener <b>al menos 6 caracteres, con una letra y un número</b> (ej. Marina24). No se aceptan claves como 123456 ni secuencias como 1234.</p><div class="stack"><div class="field"><label>Clave nueva</label><input id="fp-1" type="password" autocomplete="new-password"></div><div class="field"><label>Repita la clave nueva</label><input id="fp-2" type="password" autocomplete="new-password"></div></div>', footer: '<button class="btn" data-out type="button">Cerrar sesión</button><button class="btn primary" data-ok type="button">Guardar y entrar</button>' });
       $('[data-x]', d).remove(); d.addEventListener('cancel', e => e.preventDefault());
       $('[data-out]', d).onclick = () => App.logout();
       const go = btn => UI.busy(btn, async () => {
         const a = $('#fp-1', d).value, b = $('#fp-2', d).value;
         if (a !== b) throw new Error('Las dos claves no coinciden.');
+        const pe = passError(a); if (pe) throw new Error(pe);
         await API.call('changePassword', { password: a });
         API.user.mustChange = false; API.setSession(API.token, API.user);
         d.close(); UI.toast('Clave actualizada. ¡Bienvenido(a)!', 'success', 2500); res();
@@ -114,6 +115,15 @@ async function initLogin() {
       const r = await API.call('login', { userId: $('#lg-name').value, password: $('#lg-pass').value });
       API.setSession(r.token, r.user);
       await bootApp(r.all);
+    });
+  };
+  $('#lg-forgot').onclick = e => {
+    e.preventDefault();
+    if (!$('#lg-name').value) return UI.toast('Primero seleccione su nombre en la lista y luego pulse «¿Olvidó su clave?».', 'error');
+    UI.busy(e.currentTarget, async () => {
+      const r = await API.call('recoverPassword', { userId: $('#lg-name').value });
+      UI.notice({ type: 'success', title: 'Revise su correo', html: r.demo ? `Modo demo (no se envían correos). Clave provisoria: <b>${esc(r.pass)}</b>. Ingrese con ella y cree su clave nueva.` : `Enviamos una <b>clave provisoria</b> a <b>${esc(r.to)}</b>. Vale 1 hora: ingrese con ella y el sistema le pedirá crear su clave nueva. Si no llega, revise la carpeta de spam.` });
+      $('#lg-pass').value = ''; $('#lg-pass').focus();
     });
   };
   $('#f-family').onsubmit = e => {
@@ -236,8 +246,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('#btn-out').onclick = () => App.logout();
   $('#btn-sync').onclick = e => UI.busy(e.currentTarget, async () => { await DB.load(); App.go(App.view); UI.toast('Datos actualizados.', 'success', 1800); });
   $('#btn-pass').onclick = async () => {
-    const v = await UI.form({ title: 'Cambiar mi contraseña', fields: [{ name: 'p', label: 'Nueva contraseña', type: 'password', required: true, full: true }] });
-    if (v) UI.busy(null, async () => { await API.call('changePassword', { password: v.p }); UI.toast('Contraseña actualizada.', 'success'); });
+    const v = await UI.form({ title: 'Cambiar mi contraseña', intro: 'Mínimo 6 caracteres, con al menos una letra y un número.', fields: [{ name: 'p', label: 'Nueva contraseña', type: 'password', required: true, full: true }] });
+    if (v) UI.busy(null, async () => { const pe = passError(v.p); if (pe) throw new Error(pe); await API.call('changePassword', { password: v.p }); UI.toast('Contraseña actualizada.', 'success'); });
   };
   if (API.token && API.user) {
     try { await bootApp(); return; } catch (e) { API.clear(); }
@@ -295,6 +305,7 @@ const Pwa = {
   }
 };
 document.addEventListener('DOMContentLoaded', () => Pwa.init());
+
 
 
 

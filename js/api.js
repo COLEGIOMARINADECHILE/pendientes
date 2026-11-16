@@ -178,7 +178,13 @@ const Mock = {
       case 'previewTeacher': me(); return { html: '<p style="font-family:sans-serif;padding:20px">La vista previa del correo está disponible al conectar con Apps Script.</p>' };
       case 'notifyTeachers': me(); return { results: [], demo: true };
       case 'notify': me(); return { sent: 0, noMail: 0, demo: true };
-      case 'changePassword': { if (String(p.password || '').length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.'); if (/^(1234|0000|1111|123456|12345|123|1212)$/.test(p.password)) throw new Error('Esa contraseña es muy fácil de adivinar. Elija otra.'); const u = me(); u.password = p.password; u.mustChange = false; this.save(d); return {}; }
+      case 'changePassword': { const pe = passError(p.password); if (pe) throw new Error(pe); const u = me(); u.password = p.password; u.mustChange = false; this.save(d); return {}; }
+      case 'recoverPassword': {
+        const u = d.users.find(x => x.id === p.userId); if (!u) throw new Error('Seleccione su nombre en la lista.');
+        if (!u.email) throw new Error('Su usuario no tiene correo registrado. Pida a la UTP que lo agregue o que le entregue una clave provisoria.');
+        u.password = 'Demo' + (Math.floor(Math.random() * 90) + 10) + 'xk'; u.mustChange = true; this.save(d);
+        return { to: u.email.split('@')[0].slice(0, 2) + '***@andaliensur.cl', name: u.name, role: u.role, demo: true, pass: u.password };
+      }
       case 'saveUsers': {
         me(); const created = [], errors = []; let updated = 0;
         (p.users || []).forEach(x => {
@@ -186,7 +192,7 @@ const Mock = {
           const name = String(x.name || '').trim().toUpperCase();
           if (!name || !x.role) { errors.push('Faltan datos: ' + (name || '(sin nombre)')); return; }
           if (d.users.some(u => u.name === name)) { errors.push('Ya existe un usuario llamado ' + name); return; }
-          const pass = Math.random().toString(36).slice(2, 10);
+          const pass = 'Demo' + (Math.floor(Math.random() * 90) + 10) + 'xk';
           d.users.push({ id: newId(), name, role: x.role, assignments: [], email: x.email ? String(x.email).split('@')[0] + '@andaliensur.cl' : '', password: pass, mustChange: true });
           created.push({ name, email: x.email || '', pass, sent: false });
         });
@@ -219,6 +225,7 @@ const Mock = {
 
 
 window.addEventListener('beforeunload', e => { if (DB.pending > 0) { e.preventDefault(); e.returnValue = ''; } });
+
 
 
 

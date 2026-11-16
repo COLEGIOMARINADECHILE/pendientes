@@ -88,7 +88,7 @@ const Admin = {
     this.sel = new Set([...this.sel].filter(id => DB.users.some(u => u.id === id))); this.dirty = {};
     const list = [...DB.users].sort((a, b) => a.name.localeCompare(b.name, 'es'));
     el.innerHTML = `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h2><i class="fa-solid fa-user-gear"></i> Usuarios y accesos <small class="muted">(${list.length})</small></h2>
-        <div class="actions"><button class="btn primary" onclick="Admin.userForm()"><i class="fa-solid fa-user-plus"></i> Nuevo usuario</button><button class="btn" onclick="Admin.bulkAdd()"><i class="fa-solid fa-users-line"></i> Agregar varios</button></div></div>
+        <div class="actions"><button class="btn primary" onclick="Admin.userForm()"><i class="fa-solid fa-user-plus"></i> Nuevo usuario</button></div></div>
       <div class="notice" style="margin:12px 0"><b><i class="fa-solid fa-lock"></i> Claves:</b> las claves nuevas son provisorias y la persona debe cambiarlas al ingresar.
         <div class="actions" style="margin-top:8px"><button class="btn sm" onclick="Admin.forceMode('weak',this)"><i class="fa-solid fa-triangle-exclamation"></i> Exigir cambio a quienes tienen clave 1234 (u otra muy simple)</button>
         <button class="btn sm" onclick="Admin.forceMode('all',this)"><i class="fa-solid fa-users"></i> Exigir cambio a todos</button></div></div>
@@ -155,27 +155,6 @@ const Admin = {
   showCreds(items, errors, title) {
     const rows = items.map(x => `<li><span><b>${esc(titleCase(x.name))}</b><br><small>${esc(x.email || 'sin correo')}</small></span>${x.sent ? '<span class="pill ok">Clave enviada por correo</span>' : `<span style="text-align:right"><span class="pill bad">${esc(x.reason || 'No enviado')}</span><br>Clave provisoria: <code style="font-size:1.05rem;font-weight:700">${esc(x.pass)}</code></span>`}</li>`).join('');
     UI.modal({ title, wide: true, body: `${items.some(x => !x.sent) ? '<div class="notice warn" style="margin-bottom:10px"><b>Anote las claves provisorias</b> de quienes no recibieron el correo y entrégueselas: no se vuelven a mostrar. Cada persona deberá cambiarla al ingresar.</div>' : ''}<ul class="list">${rows || '<li class="muted">Sin elementos.</li>'}</ul>${(errors || []).length ? `<div class="notice bad" style="margin-top:10px"><b>No se pudieron crear:</b><br>${errors.map(esc).join('<br>')}</div>` : ''}` });
-  },
-
-  async bulkAdd() {
-    const v = await UI.form({ title: 'Agregar varios usuarios', wide: true, ok: 'Crear usuarios',
-      intro: 'Escriba o pegue <b>un usuario por línea</b>: <code>Nombre completo; correo; perfil</code>. El correo (solo lo anterior a la @) y el perfil son opcionales; si falta el perfil se usa el de abajo. Puede pegar desde Excel.',
-      fields: [
-        { name: 'list', label: 'Usuarios', type: 'textarea', full: true, required: true, placeholder: 'Ana Pérez Soto; ana.perez; docente\nLuis Rojas Díaz; luis.rojas\nCarla Soto Mena' },
-        { name: 'role', label: 'Perfil por defecto', type: 'select', value: 'docente', options: Object.entries(ROLE_LABELS) },
-        { name: 'send', label: 'Enviar a cada persona su clave provisoria por correo (debe cambiarla al ingresar)', type: 'check', value: true }] });
-    if (!v) return;
-    const roleOf = s => /^doc/i.test(s) ? 'docente' : /^asis/i.test(s) ? 'asistente' : /^insp/i.test(s) ? 'inspector' : /^(pie|equipo)/i.test(s) ? 'pie' : /^(admin|coord|utp)/i.test(s) ? 'admin' : '';
-    const users = v.list.split(/\r?\n/).map(l => l.split(/\t|;|,/).map(x => x.trim()).filter(Boolean)).filter(c => c.length).map(c => {
-      const u = { name: c[0], role: v.role, email: '' };
-      c.slice(1).forEach(x => { const r = roleOf(x); if (r) u.role = r; else if (!/\s/.test(x)) u.email = x; });
-      return u;
-    });
-    if (!users.length) return UI.toast('No se encontraron usuarios en el texto.', 'error');
-    UI.busy(null, async () => {
-      const r = await API.call('saveUsers', { users, sendMail: v.send }); DB.users = r.users;
-      this.keep('users'); this.showCreds(r.created || [], r.errors, `${(r.created || []).length} usuario(s) creados`);
-    });
   },
 
   /** Pregunta si se envía el correo de aviso y exige el cambio de clave. */
@@ -457,6 +436,7 @@ const Admin = {
   backup() { UI.download(`respaldo_evaluaciones_${D.today()}.json`, JSON.stringify({ exportado: new Date().toISOString(), students: DB.students, evaluations: DB.evaluations, users: DB.users, config: DB.config }, null, 1)); },
   async resetDemo() { if (await UI.confirm('Restablecer demo', 'Se borrarán los cambios hechos en este navegador y volverán los datos de ejemplo.', 'Restablecer', true)) { Mock.reset(); location.reload(); } }
 };
+
 
 
 
